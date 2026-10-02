@@ -12,7 +12,7 @@ var stars: Array[Dictionary] = []
 var galaxy_camera_position := Vector2.ZERO
 var galaxy_camera_zoom := Vector2.ONE
 
-var current_star_id := -1
+var current_star_id: int = -1
 var current_system: Dictionary = {}
 var current_planet: PlanetData
 
@@ -23,10 +23,14 @@ func _ready() -> void:
 	print("Galaxy generated with seed: ", GALAXY_SEED)
 	print("Stars generated: ", stars.size())
 
+	# Vue galaxie
 	$Galaxy.set_stars(stars)
 	$Galaxy.star_selected.connect(_on_star_selected)
+
+	# Vue système
 	$System.planet_selected.connect(_on_planet_selected)
 
+	# État initial
 	$StarInfo.visible = false
 
 	$System.visible = false
@@ -59,10 +63,17 @@ func _on_star_selected(star: Dictionary) -> void:
 
 	var info := "Système #" + str(star_id) + "\n\n"
 	info += "Type : " + star_type + "\n"
-	info += "Position : " + str(round(star_position.x))
-	info += ", " + str(round(star_position.y)) + "\n"
+	info += "Luminosité : "
+	info += str(current_system["star_luminosity"])
+	info += "\n"
+	info += "Position : "
+	info += str(round(star_position.x))
+	info += ", "
+	info += str(round(star_position.y))
+	info += "\n"
 	info += "Seed : " + str(system_seed) + "\n"
-	info += "Planètes : " + str(current_system["planets"].size())
+	info += "Planètes : "
+	info += str(current_system["planets"].size())
 
 	$StarInfo/InfoLabel.text = info
 
@@ -75,28 +86,37 @@ func _on_planet_selected(planet: PlanetData) -> void:
 	var info := "Planète #" + str(planet.id) + "\n\n"
 	info += "Type : " + planet.type + "\n"
 	info += "Taille : " + str(planet.size) + "\n"
-	info += "Distance : " + str(round(planet.orbit_distance)) + "\n"
+	info += "Distance : "
+	info += str(round(planet.orbit_distance))
+	info += "\n"
 	info += "Lunes : " + str(planet.moon_count) + "\n"
 	info += "Température : "
 	info += str(round(planet.temperature))
 	info += " °C\n"
-
 	info += "Gravité : "
 	info += str(snapped(planet.gravity, 0.01))
 	info += " G\n"
-
 	info += "Eau : "
 	info += str(round(planet.water))
 	info += " %\n"
-
 	info += "Atmosphère : "
 	info += str(round(planet.atmosphere))
 	info += " %\n"
-
+	info += "Zone habitable : "
+	info += "Oui" if planet.in_habitable_zone else "Non"
+	info += "\n"
 	info += "Habitabilité : "
 	info += str(round(planet.habitability))
 	info += " %\n"
-
+	info += "Vie : "
+	if planet.has_life:
+		info += "Oui\n"
+		info += "Niveau de vie : "
+		info += str(round(planet.life_level))
+		info += " %\n"
+	else:
+		info += "Non\n"
+	
 	info += "Seed : "
 	info += str(planet.seed)
 
@@ -137,6 +157,7 @@ func _show_galaxy() -> void:
 	$Galaxy.visible = true
 	$Galaxy/Camera2D.enabled = true
 
+	# Restaurer la position et le zoom de la caméra
 	$Galaxy/Camera2D.position = galaxy_camera_position
 	$Galaxy/Camera2D.zoom = galaxy_camera_zoom
 

@@ -5,17 +5,18 @@ extends RefCounted
 var id: int
 var seed: int
 var type: String
-
 var size: float
 var orbit_distance: float
 var moon_count: int
-
 var temperature: float
 var gravity: float
 var water: float
 var atmosphere: float
+var in_habitable_zone: bool
 var habitability: float
 
+var has_life: bool
+var life_level: float
 
 func initialize(
 	planet_id: int,
@@ -34,7 +35,49 @@ func initialize(
 	moon_count = planet_moon_count
 
 	_generate_physical_properties(star_luminosity)
+	_generate_life()
 
+func _generate_life() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+
+	has_life = false
+	life_level = 0.0
+
+	# Les géantes gazeuses ne sont pas considérées
+	# comme directement habitables.
+	if type == "gas_giant":
+		return
+
+	# Une planète hors de la zone habitable
+	# a une très faible probabilité d'abriter de la vie.
+	var life_probability: float
+
+	if in_habitable_zone:
+		life_probability = habitability / 100.0
+	else:
+		life_probability = habitability / 500.0
+
+	if rng.randf() > life_probability:
+		return
+
+	has_life = true
+
+	# Niveau d'évolution de la vie.
+	life_level = rng.randf_range(
+		10.0,
+		100.0
+	)
+
+	# Une planète très habitable favorise
+	# davantage les formes de vie complexes.
+	life_level *= habitability / 100.0
+
+	life_level = clamp(
+		life_level,
+		1.0,
+		100.0
+	)
 
 func _generate_physical_properties(star_luminosity: float) -> void:
 	var rng := RandomNumberGenerator.new()
@@ -44,6 +87,13 @@ func _generate_physical_properties(star_luminosity: float) -> void:
 	# la luminosité de l'étoile et la distance orbitale.
 	var distance_factor := sqrt(
 		star_luminosity / max(orbit_distance / 100.0, 0.1)
+	)
+
+	var habitable_distance: float = sqrt(star_luminosity) * 100.0
+
+	in_habitable_zone = (
+		orbit_distance >= habitable_distance * 0.6
+		and orbit_distance <= habitable_distance * 1.5
 	)
 
 	temperature = 15.0 + (
@@ -115,23 +165,17 @@ func _generate_physical_properties(star_luminosity: float) -> void:
 
 
 func _calculate_habitability() -> float:
-	# Les géantes gazeuses ne sont pas habitables
-	# directement à leur surface.
 	if type == "gas_giant":
 		return 0.0
 
-	var score := 100.0
+	if not in_habitable_zone:
+		return 0.0
 
-	# Température idéale autour de 15 °C.
+	var score: float = 100.0
+
 	score -= abs(temperature - 15.0) * 0.5
-
-	# Gravité idéale autour de 1 G.
 	score -= abs(gravity - 1.0) * 30.0
-
-	# Une quantité d'eau modérée est favorable.
 	score -= abs(water - 50.0) * 0.2
-
-	# Une atmosphère modérée est préférable.
 	score -= abs(atmosphere - 60.0) * 0.2
 
 	return clamp(score, 0.0, 100.0)
