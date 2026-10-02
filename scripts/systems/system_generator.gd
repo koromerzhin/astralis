@@ -6,12 +6,19 @@ func generate(system_seed: int, star_type: String) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = system_seed
 
+	var star_luminosity: float = _get_star_luminosity(star_type)
+
 	var planet_count := rng.randi_range(1, 8)
 
 	var planets: Array[PlanetData] = []
 
 	for i in planet_count:
-		var planet := _generate_planet(rng, i)
+		var planet := _generate_planet(
+			rng,
+			i,
+			star_luminosity
+		)
+
 		planets.append(planet)
 
 	return {
@@ -23,7 +30,8 @@ func generate(system_seed: int, star_type: String) -> Dictionary:
 
 func _generate_planet(
 	rng: RandomNumberGenerator,
-	id: int
+	id: int,
+	star_luminosity: float
 ) -> PlanetData:
 	var planet_types := [
 		"rocky",
@@ -59,7 +67,35 @@ func _generate_planet(
 		planet_type,
 		size,
 		orbit_distance,
-		moon_count
+		moon_count,
+		star_luminosity
 	)
 
 	return planet
+
+
+func _get_star_luminosity(star_type: String) -> float:
+	match star_type:
+		"O":
+			return 100.0
+
+		"B":
+			return 40.0
+
+		"A":
+			return 15.0
+
+		"F":
+			return 4.0
+
+		"G":
+			return 1.0
+
+		"K":
+			return 0.4
+
+		"M":
+			return 0.1
+
+		_:
+			return 1.0
