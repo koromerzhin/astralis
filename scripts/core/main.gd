@@ -102,6 +102,17 @@ func _on_planet_selected(planet: PlanetData) -> void:
 	info += "Atmosphère : "
 	info += str(round(planet.atmosphere))
 	info += " %\n"
+	info += "Minéraux : "
+	info += str(round(planet.minerals))
+	info += " %\n"
+
+	info += "Énergie : "
+	info += str(round(planet.energy))
+	info += " %\n"
+
+	info += "Ressources biologiques : "
+	info += str(round(planet.biological_resources))
+	info += " %\n"
 	info += "Zone habitable : "
 	info += "Oui" if planet.in_habitable_zone else "Non"
 	info += "\n"
@@ -109,13 +120,39 @@ func _on_planet_selected(planet: PlanetData) -> void:
 	info += str(round(planet.habitability))
 	info += " %\n"
 	info += "Vie : "
+
 	if planet.has_life:
 		info += "Oui\n"
 		info += "Niveau de vie : "
 		info += str(round(planet.life_level))
 		info += " %\n"
+		info += "Stade : "
+		info += planet.life_stage + "\n"
 	else:
 		info += "Non\n"
+		
+	if planet.civilization != null:
+		info += "\nCivilisation : "
+		info += planet.civilization.name + "\n"
+
+		info += "Population : "
+		info += str(planet.civilization.population) + "\n"
+
+		info += "Technologie : "
+		info += str(round(planet.civilization.technology)) + "\n"
+
+		info += "Économie : "
+		info += str(round(planet.civilization.economy)) + "\n"
+		info += "Capacité spatiale : "
+		info += str(round(
+			planet.civilization.space_capability
+		))
+		info += " %\n"
+		info += "Stade spatial : "
+		info += planet.civilization.get_space_stage()
+		info += "\n"
+		info += "Âge : "
+		info += str(round(planet.civilization.age)) + " ans\n"
 	
 	info += "Seed : "
 	info += str(planet.seed)

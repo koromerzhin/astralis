@@ -17,6 +17,11 @@ var habitability: float
 
 var has_life: bool
 var life_level: float
+var life_stage: String
+var civilization: CivilizationData
+var minerals: float
+var energy: float
+var biological_resources: float
 
 func initialize(
 	planet_id: int,
@@ -36,6 +41,8 @@ func initialize(
 
 	_generate_physical_properties(star_luminosity)
 	_generate_life()
+	_generate_civilization()
+	_generate_resources()
 
 func _generate_life() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -43,14 +50,11 @@ func _generate_life() -> void:
 
 	has_life = false
 	life_level = 0.0
+	life_stage = "none"
 
-	# Les géantes gazeuses ne sont pas considérées
-	# comme directement habitables.
 	if type == "gas_giant":
 		return
 
-	# Une planète hors de la zone habitable
-	# a une très faible probabilité d'abriter de la vie.
 	var life_probability: float
 
 	if in_habitable_zone:
@@ -63,14 +67,8 @@ func _generate_life() -> void:
 
 	has_life = true
 
-	# Niveau d'évolution de la vie.
-	life_level = rng.randf_range(
-		10.0,
-		100.0
-	)
+	life_level = rng.randf_range(10.0, 100.0)
 
-	# Une planète très habitable favorise
-	# davantage les formes de vie complexes.
 	life_level *= habitability / 100.0
 
 	life_level = clamp(
@@ -78,6 +76,15 @@ func _generate_life() -> void:
 		1.0,
 		100.0
 	)
+
+	if life_level < 35.0:
+		life_stage = "primitive"
+
+	elif life_level < 75.0:
+		life_stage = "complex"
+
+	else:
+		life_stage = "intelligent"
 
 func _generate_physical_properties(star_luminosity: float) -> void:
 	var rng := RandomNumberGenerator.new()
@@ -179,3 +186,95 @@ func _calculate_habitability() -> float:
 	score -= abs(atmosphere - 60.0) * 0.2
 
 	return clamp(score, 0.0, 100.0)
+
+func _generate_civilization() -> void:
+	civilization = null
+
+	if life_stage != "intelligent":
+		return
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+
+	# Toutes les espèces intelligentes ne développent
+	# pas nécessairement une civilisation.
+	var civilization_probability: float = (
+		habitability / 100.0
+	)
+
+	if rng.randf() > civilization_probability:
+		return
+
+	var civilization_seed: int = rng.randi()
+
+	civilization = CivilizationData.new()
+
+	civilization.initialize(
+		id,
+		civilization_seed,
+		id
+	)
+
+func _generate_resources() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed
+
+	# Ressources minérales.
+	match type:
+		"rocky":
+			minerals = rng.randf_range(50.0, 100.0)
+
+		"desert":
+			minerals = rng.randf_range(40.0, 90.0)
+
+		"ocean":
+			minerals = rng.randf_range(20.0, 70.0)
+
+		"ice":
+			minerals = rng.randf_range(30.0, 80.0)
+
+		"gas_giant":
+			minerals = rng.randf_range(10.0, 50.0)
+
+		_:
+			minerals = rng.randf_range(0.0, 100.0)
+
+	# Ressources énergétiques.
+	match type:
+		"desert":
+			energy = rng.randf_range(50.0, 100.0)
+
+		"ocean":
+			energy = rng.randf_range(30.0, 80.0)
+
+		"ice":
+			energy = rng.randf_range(20.0, 60.0)
+
+		"gas_giant":
+			energy = rng.randf_range(60.0, 100.0)
+
+		"rocky":
+			energy = rng.randf_range(30.0, 70.0)
+
+		_:
+			energy = rng.randf_range(0.0, 100.0)
+
+	# Ressources biologiques.
+	if has_life:
+		biological_resources = rng.randf_range(40.0, 100.0)
+
+		# Une vie complexe produit généralement
+		# davantage de ressources biologiques.
+		if life_stage == "complex":
+			biological_resources += 10.0
+
+		elif life_stage == "intelligent":
+			biological_resources += 20.0
+	else:
+		biological_resources = rng.randf_range(0.0, 20.0)
+
+	biological_resources = clamp(
+		biological_resources,
+		0.0,
+		100.0
+	)
