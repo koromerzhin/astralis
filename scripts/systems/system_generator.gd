@@ -48,8 +48,11 @@ func _generate_planet(
 	else:
 		moon_count = rng.randi_range(0, 2)
 
+	var planet_seed := rng.randi()
+
 	return {
 		"id": id,
+		"seed": planet_seed,
 		"type": planet_type,
 		"orbit_distance": orbit_distance,
 		"size": size,

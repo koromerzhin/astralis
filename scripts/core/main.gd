@@ -51,3 +51,18 @@ func _on_star_selected(star: Dictionary) -> void:
 	$StarInfo/InfoLabel.text = info
 
 	_show_system(system)
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey:
+		if event.pressed and event.keycode == KEY_ESCAPE:
+			_show_galaxy()
+
+
+func _show_galaxy() -> void:
+	$System.visible = false
+	$System/Camera2D.enabled = false
+
+	$StarInfo.visible = false
+
+	$Galaxy.visible = true
+	$Galaxy/Camera2D.enabled = true

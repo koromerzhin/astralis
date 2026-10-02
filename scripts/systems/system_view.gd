@@ -16,19 +16,60 @@ func set_system(new_system: Dictionary) -> void:
 func _initialize_planets() -> void:
 	for planet in planets:
 		var orbit_distance: float = planet["orbit_distance"]
+		var planet_seed: int = planet["seed"]
 
 		var rng := RandomNumberGenerator.new()
-		rng.seed = system["seed"] + planet["id"]
+		rng.seed = planet_seed
 
 		planet["angle"] = rng.randf_range(0.0, TAU)
-
-		# Les planètes proches tournent plus rapidement.
 		planet["orbit_speed"] = 80.0 / max(orbit_distance, 50.0)
+
+		_initialize_moons(planet)
+
+
+func _initialize_moons(planet: Dictionary) -> void:
+	var moon_count: int = planet["moons"]
+	var planet_seed: int = planet["seed"]
+	var planet_size: float = planet["size"]
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = planet_seed
+
+	var moons: Array[Dictionary] = []
+
+	for i in moon_count:
+		var moon_seed := rng.randi()
+
+		var distance := 18.0 + planet_size * 8.0
+		distance += float(i) * 12.0
+		distance += rng.randf_range(-3.0, 3.0)
+
+		var size := rng.randf_range(0.15, 0.35)
+
+		var orbit_speed := rng.randf_range(1.0, 2.5)
+
+		var moon := {
+			"id": i,
+			"seed": moon_seed,
+			"distance": distance,
+			"size": size,
+			"angle": rng.randf_range(0.0, TAU),
+			"orbit_speed": orbit_speed
+		}
+
+		moons.append(moon)
+
+	planet["moon_data"] = moons
 
 
 func _process(delta: float) -> void:
 	for planet in planets:
 		planet["angle"] += planet["orbit_speed"] * delta
+
+		var moons: Array[Dictionary] = planet["moon_data"]
+
+		for moon in moons:
+			moon["angle"] += moon["orbit_speed"] * delta
 
 	queue_redraw()
 
@@ -46,7 +87,7 @@ func _draw() -> void:
 		var planet_size: float = planet["size"]
 		var angle: float = planet["angle"]
 
-		# Orbite
+		# Orbite de la planète
 		draw_arc(
 			Vector2.ZERO,
 			orbit_distance,
@@ -57,7 +98,7 @@ func _draw() -> void:
 			1.0
 		)
 
-		# Position actuelle de la planète
+		# Position de la planète
 		var position := Vector2(
 			cos(angle) * orbit_distance,
 			sin(angle) * orbit_distance
@@ -67,6 +108,43 @@ func _draw() -> void:
 			position,
 			planet_size * 5.0,
 			_get_planet_color(planet["type"])
+		)
+
+		_draw_moons(
+			position,
+			planet["moon_data"]
+		)
+
+
+func _draw_moons(
+	planet_position: Vector2,
+	moons: Array[Dictionary]
+) -> void:
+	for moon in moons:
+		var distance: float = moon["distance"]
+		var angle: float = moon["angle"]
+		var size: float = moon["size"]
+
+		# Orbite de la lune
+		draw_arc(
+			planet_position,
+			distance,
+			0.0,
+			TAU,
+			32,
+			Color(0.4, 0.4, 0.4, 0.35),
+			1.0
+		)
+
+		var moon_position := planet_position + Vector2(
+			cos(angle) * distance,
+			sin(angle) * distance
+		)
+
+		draw_circle(
+			moon_position,
+			size * 5.0,
+			Color(0.75, 0.75, 0.75)
 		)
 
 
