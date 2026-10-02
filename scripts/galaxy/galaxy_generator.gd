@@ -36,6 +36,7 @@ func _generate_star(rng: RandomNumberGenerator, id: int) -> Dictionary:
 		"id": id,
 		"position": position,
 		"type": _generate_star_type(rng),
+		"system_seed": rng.randi(),
 	}
 
 

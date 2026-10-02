@@ -16,3 +16,15 @@ script = ExtResource("1_u1xfj")
 script = ExtResource("2_nha0i")
 
 [node name="Camera2D" type="Camera2D" parent="Galaxy" unique_id=466404262]
+
+[node name="StarInfo" type="Panel" parent="." unique_id=1933114617]
+layout_mode = 0
+offset_left = 20.0
+offset_top = 20.0
+offset_right = 300.0
+offset_bottom = 170.0
+
+[node name="InfoLabel" type="Label" parent="StarInfo" unique_id=252663770]
+layout_mode = 0
+offset_right = 250.0
+offset_bottom = 120.0

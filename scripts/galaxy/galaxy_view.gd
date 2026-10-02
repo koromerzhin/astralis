@@ -1,5 +1,7 @@
 extends Node2D
 
+signal star_selected(star: Dictionary)
+
 var stars: Array[Dictionary] = []
 var selected_star_id := -1
 
@@ -65,6 +67,11 @@ func _select_star_at_position(mouse_position: Vector2) -> void:
 	if closest_distance <= selection_distance:
 		selected_star_id = closest_star_id
 		queue_redraw()
+
+		for star in stars:
+			if star["id"] == selected_star_id:
+				star_selected.emit(star)
+				break
 
 
 func _zoom(factor: float) -> void:
