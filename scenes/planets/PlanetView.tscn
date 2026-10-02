@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://fuct12erount"]
+
+[ext_resource type="Script" uid="uid://cin5e0r6spe12" path="res://scenes/planets/planet_view.gd" id="1_n8ae6"]
+
+[node name="PlanetView" type="Node2D" unique_id=203344807]
+script = ExtResource("1_n8ae6")
