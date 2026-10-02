@@ -77,7 +77,28 @@ func _on_planet_selected(planet: PlanetData) -> void:
 	info += "Taille : " + str(planet.size) + "\n"
 	info += "Distance : " + str(round(planet.orbit_distance)) + "\n"
 	info += "Lunes : " + str(planet.moon_count) + "\n"
-	info += "Seed : " + str(planet.seed)
+	info += "Température : "
+	info += str(round(planet.temperature))
+	info += " °C\n"
+
+	info += "Gravité : "
+	info += str(snapped(planet.gravity, 0.01))
+	info += " G\n"
+
+	info += "Eau : "
+	info += str(round(planet.water))
+	info += " %\n"
+
+	info += "Atmosphère : "
+	info += str(round(planet.atmosphere))
+	info += " %\n"
+
+	info += "Habitabilité : "
+	info += str(round(planet.habitability))
+	info += " %\n"
+
+	info += "Seed : "
+	info += str(planet.seed)
 
 	$StarInfo/InfoLabel.text = info
 	$StarInfo.visible = true
