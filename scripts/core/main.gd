@@ -26,6 +26,8 @@ func _ready() -> void:
 	$Galaxy.set_stars(stars)
 	$Galaxy.star_selected.connect(_on_star_selected)
 
+	$System.planet_selected.connect(_on_planet_selected)
+
 	$System.visible = false
 	$System/Camera2D.enabled = false
 
@@ -66,3 +68,14 @@ func _show_galaxy() -> void:
 
 	$Galaxy.visible = true
 	$Galaxy/Camera2D.enabled = true
+
+func _on_planet_selected(planet: Dictionary) -> void:
+	var info := "Planète #" + str(planet["id"]) + "\n\n"
+	info += "Type : " + str(planet["type"]) + "\n"
+	info += "Taille : " + str(planet["size"]) + "\n"
+	info += "Distance : " + str(round(planet["orbit_distance"])) + "\n"
+	info += "Lunes : " + str(planet["moons"]) + "\n"
+	info += "Seed : " + str(planet["seed"])
+
+	$StarInfo/InfoLabel.text = info
+	$StarInfo.visible = true

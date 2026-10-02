@@ -1,5 +1,7 @@
 extends Node2D
 
+signal planet_selected(planet: Dictionary)
+
 var system: Dictionary = {}
 var planets: Array[Dictionary] = []
 
@@ -38,22 +40,22 @@ func _initialize_moons(planet: Dictionary) -> void:
 	var moons: Array[Dictionary] = []
 
 	for i in moon_count:
-		var moon_seed := rng.randi()
+		var moon_seed: int = rng.randi()
 
-		var distance := 18.0 + planet_size * 8.0
+		var distance: float = 18.0 + planet_size * 8.0
 		distance += float(i) * 12.0
 		distance += rng.randf_range(-3.0, 3.0)
 
-		var size := rng.randf_range(0.15, 0.35)
+		var size: float = rng.randf_range(0.15, 0.35)
+		var orbit_speed: float = rng.randf_range(1.0, 2.5)
+		var angle: float = rng.randf_range(0.0, TAU)
 
-		var orbit_speed := rng.randf_range(1.0, 2.5)
-
-		var moon := {
+		var moon: Dictionary = {
 			"id": i,
 			"seed": moon_seed,
 			"distance": distance,
 			"size": size,
-			"angle": rng.randf_range(0.0, TAU),
+			"angle": angle,
 			"orbit_speed": orbit_speed
 		}
 
@@ -99,19 +101,21 @@ func _draw() -> void:
 		)
 
 		# Position de la planète
-		var position := Vector2(
+		var planet_position: Vector2 = Vector2(
 			cos(angle) * orbit_distance,
 			sin(angle) * orbit_distance
 		)
 
+		# Planète
 		draw_circle(
-			position,
+			planet_position,
 			planet_size * 5.0,
 			_get_planet_color(planet["type"])
 		)
 
+		# Lunes
 		_draw_moons(
-			position,
+			planet_position,
 			planet["moon_data"]
 		)
 
@@ -136,11 +140,13 @@ func _draw_moons(
 			1.0
 		)
 
-		var moon_position := planet_position + Vector2(
+		# Position de la lune
+		var moon_position: Vector2 = planet_position + Vector2(
 			cos(angle) * distance,
 			sin(angle) * distance
 		)
 
+		# Lune
 		draw_circle(
 			moon_position,
 			size * 5.0,
@@ -167,3 +173,48 @@ func _get_planet_color(planet_type: String) -> Color:
 
 		_:
 			return Color.WHITE
+
+
+func _input(event: InputEvent) -> void:
+	if not visible:
+		return
+
+	if event is InputEventMouseButton:
+		if event.pressed:
+			if event.button_index == MOUSE_BUTTON_LEFT:
+				_select_planet_at_position(
+					get_global_mouse_position()
+				)
+
+				get_viewport().set_input_as_handled()
+
+
+func _select_planet_at_position(mouse_position: Vector2) -> void:
+	var closest_planet: Dictionary = {}
+	var closest_distance: float = INF
+
+	for planet in planets:
+		var orbit_distance: float = planet["orbit_distance"]
+		var angle: float = planet["angle"]
+
+		var planet_position: Vector2 = Vector2(
+			cos(angle) * orbit_distance,
+			sin(angle) * orbit_distance
+		)
+
+		var distance: float = mouse_position.distance_to(
+			planet_position
+		)
+
+		if distance < closest_distance:
+			closest_distance = distance
+			closest_planet = planet
+
+	if closest_planet.is_empty():
+		return
+
+	var zoom: float = $Camera2D.zoom.x
+	var selection_distance: float = 20.0 / zoom
+
+	if closest_distance <= selection_distance:
+		planet_selected.emit(closest_planet)

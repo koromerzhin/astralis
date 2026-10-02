@@ -38,6 +38,9 @@ func _process(delta: float) -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	if not visible:
+		return
+
 	if event is InputEventMouseButton:
 		if event.pressed:
 			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
@@ -48,7 +51,6 @@ func _unhandled_input(event: InputEvent) -> void:
 
 			elif event.button_index == MOUSE_BUTTON_LEFT:
 				_select_star_at_position(get_global_mouse_position())
-
 
 func _select_star_at_position(mouse_position: Vector2) -> void:
 	var closest_star_id := -1
