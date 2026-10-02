@@ -6,6 +6,16 @@ var galaxy_generator := GalaxyGenerator.new()
 var system_generator := SystemGenerator.new()
 var stars: Array[Dictionary] = []
 
+func _show_system(system: Dictionary) -> void:
+	$Galaxy.visible = false
+	$Galaxy/Camera2D.enabled = false
+
+	$StarInfo.visible = false
+
+	$System.visible = true
+	$System/Camera2D.enabled = true
+
+	$System.set_system(system)
 
 func _ready() -> void:
 	stars = galaxy_generator.generate(GALAXY_SEED)
@@ -15,6 +25,9 @@ func _ready() -> void:
 
 	$Galaxy.set_stars(stars)
 	$Galaxy.star_selected.connect(_on_star_selected)
+
+	$System.visible = false
+	$System/Camera2D.enabled = false
 
 
 func _on_star_selected(star: Dictionary) -> void:
@@ -36,3 +49,5 @@ func _on_star_selected(star: Dictionary) -> void:
 	info += "Planètes : " + str(system["planets"].size())
 
 	$StarInfo/InfoLabel.text = info
+
+	_show_system(system)

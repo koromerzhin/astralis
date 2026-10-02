@@ -1,0 +1,6 @@
+[gd_scene format=3 uid="uid://cnl0m7rmhkf8w"]
+
+[ext_resource type="Script" uid="uid://btiq33bayqplk" path="res://scripts/systems/system_view.gd" id="1_67kiv"]
+
+[node name="SystemView" type="Node2D" unique_id=1503511750]
+script = ExtResource("1_67kiv")

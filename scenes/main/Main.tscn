@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" uid="uid://b6v2qv2dbteut" path="res://scripts/core/main.gd" id="1_u1xfj"]
 [ext_resource type="Script" uid="uid://rpg3g8n4pl7v" path="res://scripts/galaxy/galaxy_view.gd" id="2_nha0i"]
+[ext_resource type="Script" uid="uid://btiq33bayqplk" path="res://scripts/systems/system_view.gd" id="3_q24mn"]
 
 [node name="Main" type="Control" unique_id=512674245]
 layout_mode = 3
@@ -28,3 +29,8 @@ offset_bottom = 170.0
 layout_mode = 0
 offset_right = 250.0
 offset_bottom = 120.0
+
+[node name="System" type="Node2D" parent="." unique_id=318341553]
+script = ExtResource("3_q24mn")
+
+[node name="Camera2D" type="Camera2D" parent="System" unique_id=801506511]
