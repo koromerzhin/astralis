@@ -28,6 +28,7 @@ func _ready() -> void:
 
 	$System.planet_selected.connect(_on_planet_selected)
 
+	$StarInfo.visible = false
 	$System.visible = false
 	$System/Camera2D.enabled = false
 
@@ -51,6 +52,7 @@ func _on_star_selected(star: Dictionary) -> void:
 	info += "Planètes : " + str(system["planets"].size())
 
 	$StarInfo/InfoLabel.text = info
+	$Galaxy.camera.position = star_position
 
 	_show_system(system)
 
