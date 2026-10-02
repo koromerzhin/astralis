@@ -9,6 +9,8 @@ var selected_star_id := -1
 @export var zoom_speed := 0.1
 @export var min_zoom := 0.25
 @export var max_zoom := 4.0
+@export var star_min_zoom := 0.5
+@export var star_max_zoom := 2.0
 
 @onready var camera: Camera2D = $Camera2D
 
@@ -82,8 +84,20 @@ func _zoom(factor: float) -> void:
 
 	camera.zoom = Vector2(new_zoom, new_zoom)
 
+	queue_redraw()
+
 
 func _draw() -> void:
+	var zoom: float = camera.zoom.x
+
+	var visibility := inverse_lerp(
+		star_min_zoom,
+		star_max_zoom,
+		zoom
+	)
+
+	visibility = clamp(visibility, 0.0, 1.0)
+
 	for star in stars:
 		var position: Vector2 = star["position"]
 		var star_type: String = star["type"]
@@ -91,7 +105,13 @@ func _draw() -> void:
 		var color := _get_star_color(star_type)
 		var radius := _get_star_radius(star_type)
 
-		draw_circle(position, radius, color)
+		color.a = visibility
+
+		draw_circle(
+			position,
+			radius,
+			color
+		)
 
 		if star["id"] == selected_star_id:
 			draw_circle(
