@@ -5,6 +5,9 @@ const GALAXY_SEED := 827391
 var galaxy_generator := GalaxyGenerator.new()
 var system_generator := SystemGenerator.new()
 var stars: Array[Dictionary] = []
+var galaxy_camera_position := Vector2.ZERO
+var galaxy_camera_zoom := Vector2.ONE
+var current_star_id := -1
 
 func _show_system(system: Dictionary) -> void:
 	$Galaxy.visible = false
@@ -39,6 +42,11 @@ func _on_star_selected(star: Dictionary) -> void:
 	var star_position: Vector2 = star["position"]
 	var system_seed: int = star["system_seed"]
 
+	# Sauvegarder l'état de la caméra de la galaxie
+	galaxy_camera_position = $Galaxy/Camera2D.position
+	galaxy_camera_zoom = $Galaxy/Camera2D.zoom
+	current_star_id = star_id
+
 	var system: Dictionary = system_generator.generate(
 		system_seed,
 		star_type
@@ -52,10 +60,9 @@ func _on_star_selected(star: Dictionary) -> void:
 	info += "Planètes : " + str(system["planets"].size())
 
 	$StarInfo/InfoLabel.text = info
-	$Galaxy.camera.position = star_position
 
 	_show_system(system)
-
+	
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
 		if event.pressed and event.keycode == KEY_ESCAPE:
@@ -66,10 +73,15 @@ func _show_galaxy() -> void:
 	$System.visible = false
 	$System/Camera2D.enabled = false
 
-	$StarInfo.visible = false
-
 	$Galaxy.visible = true
 	$Galaxy/Camera2D.enabled = true
+
+	$Galaxy/Camera2D.position = galaxy_camera_position
+	$Galaxy/Camera2D.zoom = galaxy_camera_zoom
+
+	$StarInfo.visible = false
+
+	$Galaxy.queue_redraw()
 
 func _on_planet_selected(planet: PlanetData) -> void:
 	var info := "Planète #" + str(planet.id) + "\n\n"
