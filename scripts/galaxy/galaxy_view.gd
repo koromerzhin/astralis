@@ -50,9 +50,54 @@ func _zoom(factor: float) -> void:
 
 	camera.zoom = Vector2(new_zoom, new_zoom)
 
-
 func _draw() -> void:
 	for star in stars:
 		var position: Vector2 = star["position"]
+		var star_type: String = star["type"]
 
-		draw_circle(position, 3.0, Color.WHITE)
+		var color := _get_star_color(star_type)
+		var radius := _get_star_radius(star_type)
+
+		draw_circle(position, radius, color)
+
+
+func _get_star_color(star_type: String) -> Color:
+	match star_type:
+		"red_dwarf":
+			return Color(1.0, 0.35, 0.2)
+
+		"yellow":
+			return Color(1.0, 0.9, 0.4)
+
+		"orange":
+			return Color(1.0, 0.55, 0.2)
+
+		"blue":
+			return Color(0.3, 0.6, 1.0)
+
+		"white":
+			return Color(0.95, 0.95, 1.0)
+
+		_:
+			return Color.WHITE
+
+
+func _get_star_radius(star_type: String) -> float:
+	match star_type:
+		"red_dwarf":
+			return 2.0
+
+		"yellow":
+			return 3.0
+
+		"orange":
+			return 2.5
+
+		"blue":
+			return 3.5
+
+		"white":
+			return 3.0
+
+		_:
+			return 2.0
