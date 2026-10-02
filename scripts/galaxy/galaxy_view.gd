@@ -1,6 +1,7 @@
 extends Node2D
 
 var stars: Array[Dictionary] = []
+var selected_star_id := -1
 
 @export var move_speed := 500.0
 @export var zoom_speed := 0.1
@@ -43,12 +44,35 @@ func _unhandled_input(event: InputEvent) -> void:
 			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
 				_zoom(1.0 + zoom_speed)
 
+			elif event.button_index == MOUSE_BUTTON_LEFT:
+				_select_star_at_position(get_global_mouse_position())
+
+
+func _select_star_at_position(mouse_position: Vector2) -> void:
+	var closest_star_id := -1
+	var closest_distance := INF
+
+	for star in stars:
+		var star_position: Vector2 = star["position"]
+		var distance := mouse_position.distance_to(star_position)
+
+		if distance < closest_distance:
+			closest_distance = distance
+			closest_star_id = star["id"]
+
+	var selection_distance := 20.0 / camera.zoom.x
+
+	if closest_distance <= selection_distance:
+		selected_star_id = closest_star_id
+		queue_redraw()
+
 
 func _zoom(factor: float) -> void:
 	var new_zoom := camera.zoom.x * factor
 	new_zoom = clamp(new_zoom, min_zoom, max_zoom)
 
 	camera.zoom = Vector2(new_zoom, new_zoom)
+
 
 func _draw() -> void:
 	for star in stars:
@@ -59,6 +83,15 @@ func _draw() -> void:
 		var radius := _get_star_radius(star_type)
 
 		draw_circle(position, radius, color)
+
+		if star["id"] == selected_star_id:
+			draw_circle(
+				position,
+				radius + 6.0,
+				Color.WHITE,
+				false,
+				2.0
+			)
 
 
 func _get_star_color(star_type: String) -> Color:
