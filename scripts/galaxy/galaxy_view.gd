@@ -12,6 +12,11 @@ var selected_star_id := -1
 @export var star_min_zoom := 0.5
 @export var star_max_zoom := 2.0
 
+@export var galaxy_radius := 1200.0
+@export var galaxy_arm_count := 4
+@export var galaxy_arm_twist := 2.5
+@export var galaxy_arm_width := 0.35
+
 @onready var camera: Camera2D = $Camera2D
 
 
@@ -90,9 +95,71 @@ func _zoom(factor: float) -> void:
 func _draw() -> void:
 	var zoom: float = camera.zoom.x
 
+	_draw_galaxy(zoom)
+	_draw_stars(zoom)
+
+func _draw_galaxy(zoom: float) -> void:
 	var visibility := inverse_lerp(
-		star_min_zoom,
-		star_max_zoom,
+		0.25,
+		1.0,
+		zoom
+	)
+
+	visibility = clamp(visibility, 0.0, 1.0)
+
+	var rings := 40
+	var points_per_ring := 80
+
+	for ring in rings:
+		var radius := galaxy_radius * float(ring + 1) / float(rings)
+
+		for point in points_per_ring:
+			var angle := TAU * float(point) / float(points_per_ring)
+
+			for arm in galaxy_arm_count:
+				var arm_angle := (
+					TAU * float(arm) / float(galaxy_arm_count)
+				)
+
+				var spiral_angle := (
+					radius / galaxy_radius
+					* galaxy_arm_twist
+					* TAU
+				)
+
+				var angle_offset := (
+					arm_angle
+					+ spiral_angle
+				)
+
+				var final_angle := angle_offset + angle
+
+				var position := Vector2(
+					cos(final_angle) * radius,
+					sin(final_angle) * radius
+				)
+
+				var distance_from_arm: float = abs(
+					sin(angle * 3.0)
+				)
+
+				var alpha: float = (
+					0.015
+					+ distance_from_arm * 0.015
+				)
+
+				alpha *= visibility
+
+				draw_circle(
+					position,
+					1.5,
+					Color(0.6, 0.7, 1.0, alpha)
+				)
+
+func _draw_stars(zoom: float) -> void:
+	var visibility := inverse_lerp(
+		0.5,
+		2.0,
 		zoom
 	)
 
