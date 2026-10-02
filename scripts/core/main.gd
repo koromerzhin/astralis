@@ -69,13 +69,13 @@ func _show_galaxy() -> void:
 	$Galaxy.visible = true
 	$Galaxy/Camera2D.enabled = true
 
-func _on_planet_selected(planet: Dictionary) -> void:
-	var info := "Planète #" + str(planet["id"]) + "\n\n"
-	info += "Type : " + str(planet["type"]) + "\n"
-	info += "Taille : " + str(planet["size"]) + "\n"
-	info += "Distance : " + str(round(planet["orbit_distance"])) + "\n"
-	info += "Lunes : " + str(planet["moons"]) + "\n"
-	info += "Seed : " + str(planet["seed"])
+func _on_planet_selected(planet: PlanetData) -> void:
+	var info := "Planète #" + str(planet.id) + "\n\n"
+	info += "Type : " + planet.type + "\n"
+	info += "Taille : " + str(planet.size) + "\n"
+	info += "Distance : " + str(round(planet.orbit_distance)) + "\n"
+	info += "Lunes : " + str(planet.moon_count) + "\n"
+	info += "Seed : " + str(planet.seed)
 
 	$StarInfo/InfoLabel.text = info
 	$StarInfo.visible = true

@@ -22,13 +22,16 @@ script = ExtResource("2_nha0i")
 layout_mode = 0
 offset_left = 20.0
 offset_top = 20.0
-offset_right = 300.0
-offset_bottom = 170.0
+offset_right = 340.0
+offset_bottom = 220.0
 
 [node name="InfoLabel" type="Label" parent="StarInfo" unique_id=252663770]
 layout_mode = 0
-offset_right = 250.0
-offset_bottom = 120.0
+offset_left = 15.0
+offset_top = 15.0
+offset_right = 305.0
+offset_bottom = 185.0
+theme_override_font_sizes/font_size = 18
 
 [node name="System" type="Node2D" parent="." unique_id=318341553]
 script = ExtResource("3_q24mn")

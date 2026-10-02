@@ -1,9 +1,9 @@
 extends Node2D
 
-signal planet_selected(planet: Dictionary)
+signal planet_selected(planet: PlanetData)
 
 var system: Dictionary = {}
-var planets: Array[Dictionary] = []
+var planets: Array[PlanetData] = []
 
 
 func set_system(new_system: Dictionary) -> void:
@@ -17,32 +17,32 @@ func set_system(new_system: Dictionary) -> void:
 
 func _initialize_planets() -> void:
 	for planet in planets:
-		var orbit_distance: float = planet["orbit_distance"]
-		var planet_seed: int = planet["seed"]
-
 		var rng := RandomNumberGenerator.new()
-		rng.seed = planet_seed
+		rng.seed = planet.seed
 
-		planet["angle"] = rng.randf_range(0.0, TAU)
-		planet["orbit_speed"] = 80.0 / max(orbit_distance, 50.0)
+		planet.set_meta(
+			"angle",
+			rng.randf_range(0.0, TAU)
+		)
+
+		planet.set_meta(
+			"orbit_speed",
+			80.0 / max(planet.orbit_distance, 50.0)
+		)
 
 		_initialize_moons(planet)
 
 
-func _initialize_moons(planet: Dictionary) -> void:
-	var moon_count: int = planet["moons"]
-	var planet_seed: int = planet["seed"]
-	var planet_size: float = planet["size"]
-
+func _initialize_moons(planet: PlanetData) -> void:
 	var rng := RandomNumberGenerator.new()
-	rng.seed = planet_seed
+	rng.seed = planet.seed
 
 	var moons: Array[Dictionary] = []
 
-	for i in moon_count:
+	for i in planet.moon_count:
 		var moon_seed: int = rng.randi()
 
-		var distance: float = 18.0 + planet_size * 8.0
+		var distance: float = 18.0 + planet.size * 8.0
 		distance += float(i) * 12.0
 		distance += rng.randf_range(-3.0, 3.0)
 
@@ -61,14 +61,19 @@ func _initialize_moons(planet: Dictionary) -> void:
 
 		moons.append(moon)
 
-	planet["moon_data"] = moons
+	planet.set_meta("moons", moons)
 
 
 func _process(delta: float) -> void:
 	for planet in planets:
-		planet["angle"] += planet["orbit_speed"] * delta
+		var angle: float = planet.get_meta("angle")
+		var orbit_speed: float = planet.get_meta("orbit_speed")
 
-		var moons: Array[Dictionary] = planet["moon_data"]
+		angle += orbit_speed * delta
+
+		planet.set_meta("angle", angle)
+
+		var moons: Array[Dictionary] = planet.get_meta("moons")
 
 		for moon in moons:
 			moon["angle"] += moon["orbit_speed"] * delta
@@ -85,9 +90,8 @@ func _draw() -> void:
 	)
 
 	for planet in planets:
-		var orbit_distance: float = planet["orbit_distance"]
-		var planet_size: float = planet["size"]
-		var angle: float = planet["angle"]
+		var orbit_distance: float = planet.orbit_distance
+		var angle: float = planet.get_meta("angle")
 
 		# Orbite de la planète
 		draw_arc(
@@ -109,14 +113,16 @@ func _draw() -> void:
 		# Planète
 		draw_circle(
 			planet_position,
-			planet_size * 5.0,
-			_get_planet_color(planet["type"])
+			planet.size * 5.0,
+			_get_planet_color(planet.type)
 		)
 
 		# Lunes
+		var moons: Array[Dictionary] = planet.get_meta("moons")
+
 		_draw_moons(
 			planet_position,
-			planet["moon_data"]
+			moons
 		)
 
 
@@ -190,12 +196,12 @@ func _input(event: InputEvent) -> void:
 
 
 func _select_planet_at_position(mouse_position: Vector2) -> void:
-	var closest_planet: Dictionary = {}
+	var closest_planet: PlanetData = null
 	var closest_distance: float = INF
 
 	for planet in planets:
-		var orbit_distance: float = planet["orbit_distance"]
-		var angle: float = planet["angle"]
+		var orbit_distance: float = planet.orbit_distance
+		var angle: float = planet.get_meta("angle")
 
 		var planet_position: Vector2 = Vector2(
 			cos(angle) * orbit_distance,
@@ -210,7 +216,7 @@ func _select_planet_at_position(mouse_position: Vector2) -> void:
 			closest_distance = distance
 			closest_planet = planet
 
-	if closest_planet.is_empty():
+	if closest_planet == null:
 		return
 
 	var zoom: float = $Camera2D.zoom.x
