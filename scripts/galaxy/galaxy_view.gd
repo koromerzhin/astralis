@@ -57,30 +57,35 @@ func _unhandled_input(event: InputEvent) -> void:
 				_zoom(1.0 + zoom_speed)
 
 			elif event.button_index == MOUSE_BUTTON_LEFT:
-				_select_star_at_position(get_global_mouse_position())
+				_select_star_at_position(
+					get_global_mouse_position()
+				)
 
 func _select_star_at_position(mouse_position: Vector2) -> void:
 	var closest_star_id := -1
-	var closest_distance := INF
+	var closest_distance: float = INF
 
 	for star in stars:
 		var star_position: Vector2 = star["position"]
-		var distance := mouse_position.distance_to(star_position)
+		var distance: float = mouse_position.distance_to(star_position)
 
 		if distance < closest_distance:
 			closest_distance = distance
 			closest_star_id = star["id"]
 
-	var selection_distance := 20.0 / camera.zoom.x
+	var selection_distance: float = 20.0 / camera.zoom.x
 
 	if closest_distance <= selection_distance:
 		selected_star_id = closest_star_id
+		star_selected.emit(_get_star_by_id(closest_star_id))
 		queue_redraw()
 
-		for star in stars:
-			if star["id"] == selected_star_id:
-				star_selected.emit(star)
-				break
+func _get_star_by_id(star_id: int) -> Dictionary:
+	for star in stars:
+		if star["id"] == star_id:
+			return star
+
+	return {}
 
 
 func _zoom(factor: float) -> void:

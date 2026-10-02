@@ -15,6 +15,16 @@ script = ExtResource("1_u1xfj")
 
 [node name="Galaxy" type="Node2D" parent="." unique_id=426230620]
 script = ExtResource("2_nha0i")
+move_speed = null
+zoom_speed = null
+min_zoom = null
+max_zoom = null
+star_min_zoom = null
+star_max_zoom = null
+galaxy_radius = null
+galaxy_arm_count = null
+galaxy_arm_twist = null
+galaxy_arm_width = null
 
 [node name="Camera2D" type="Camera2D" parent="Galaxy" unique_id=466404262]
 
