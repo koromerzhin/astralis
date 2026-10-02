@@ -1,13 +1,34 @@
 extends Node2D
 
 var system: Dictionary = {}
-
 var planets: Array[Dictionary] = []
 
 
 func set_system(new_system: Dictionary) -> void:
 	system = new_system
 	planets = system["planets"]
+
+	_initialize_planets()
+
+	queue_redraw()
+
+
+func _initialize_planets() -> void:
+	for planet in planets:
+		var orbit_distance: float = planet["orbit_distance"]
+
+		var rng := RandomNumberGenerator.new()
+		rng.seed = system["seed"] + planet["id"]
+
+		planet["angle"] = rng.randf_range(0.0, TAU)
+
+		# Les planètes proches tournent plus rapidement.
+		planet["orbit_speed"] = 80.0 / max(orbit_distance, 50.0)
+
+
+func _process(delta: float) -> void:
+	for planet in planets:
+		planet["angle"] += planet["orbit_speed"] * delta
 
 	queue_redraw()
 
@@ -23,6 +44,7 @@ func _draw() -> void:
 	for planet in planets:
 		var orbit_distance: float = planet["orbit_distance"]
 		var planet_size: float = planet["size"]
+		var angle: float = planet["angle"]
 
 		# Orbite
 		draw_arc(
@@ -35,10 +57,10 @@ func _draw() -> void:
 			1.0
 		)
 
-		# Position temporaire
+		# Position actuelle de la planète
 		var position := Vector2(
-			orbit_distance,
-			0.0
+			cos(angle) * orbit_distance,
+			sin(angle) * orbit_distance
 		)
 
 		draw_circle(
