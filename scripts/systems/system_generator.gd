@@ -2,24 +2,50 @@ class_name SystemGenerator
 extends RefCounted
 
 
-func generate(system_seed: int, star_type: String) -> Dictionary:
+func generate(
+	system_seed: int,
+	star_type: String,
+	system_id: int
+) -> Dictionary:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = system_seed
 
-	var star_luminosity: float = _get_star_luminosity(star_type)
+	var star_luminosity: float = (
+		_get_star_luminosity(star_type)
+	)
 
-	var planet_count: int = rng.randi_range(1, 8)
+	var planet_count: int = (
+		rng.randi_range(1, 8)
+	)
 
 	var planets: Array[PlanetData] = []
 
 	for i in planet_count:
-		var planet: PlanetData = _generate_planet(
-			rng,
-			i,
-			star_luminosity
+		var planet: PlanetData = (
+			_generate_planet(
+				rng,
+				i,
+				star_luminosity
+			)
 		)
 
+		planet.global_id = (
+			system_id * 100
+			+ planet.id
+		)
+
+		if planet.civilization != null:
+			planet.civilization.global_id = (
+				planet.global_id * 1000
+				+ planet.civilization.id
+			)
+
 		planets.append(planet)
+
+	_generate_colonies(
+		rng,
+		planets
+	)
 
 	return {
 		"seed": system_seed,
@@ -158,3 +184,65 @@ func _get_star_luminosity(star_type: String) -> float:
 
 		_:
 			return 1.0
+
+func _generate_colonies(
+	rng: RandomNumberGenerator,
+	planets: Array[PlanetData]
+) -> void:
+
+	for civilization_planet in planets:
+		var civilization: CivilizationData = (
+			civilization_planet.civilization
+		)
+
+		if civilization == null:
+			continue
+
+		if civilization.get_space_stage() != "interplanetary" \
+		and civilization.get_space_stage() != "interstellar":
+			continue
+
+		var maximum_colonies: int = 0
+
+		if civilization.get_space_stage() == "interplanetary":
+			maximum_colonies = rng.randi_range(0, 2)
+		else:
+			maximum_colonies = rng.randi_range(1, 3)
+
+		for target_planet in planets:
+			if maximum_colonies <= 0:
+				break
+
+			if target_planet.id == civilization_planet.id:
+				continue
+
+			if target_planet.civilization != null:
+				continue
+
+			if target_planet.colony_owner_id != -1:
+				continue
+
+			# Une planète très hostile est moins susceptible
+			# d'être colonisée.
+			if target_planet.habitability < 20.0:
+				continue
+
+			var colonization_probability: float = (
+				civilization.space_capability / 100.0
+			)
+
+			if rng.randf() > colonization_probability:
+				continue
+
+			target_planet.colony_owner_id = (
+				civilization.global_id
+			)
+
+			var colony_seed: int = rng.randi()
+
+			civilization.add_colony(
+				colony_seed,
+				target_planet
+			)
+
+			maximum_colonies -= 1

@@ -5,7 +5,6 @@ const GALAXY_SEED := 827391
 
 
 var galaxy_generator := GalaxyGenerator.new()
-var system_generator := SystemGenerator.new()
 
 var stars: Array[Dictionary] = []
 
@@ -15,10 +14,13 @@ var galaxy_camera_zoom := Vector2.ONE
 var current_star_id: int = -1
 var current_system: Dictionary = {}
 var current_planet: PlanetData
+var simulation_year: int = 0
 
+@onready var simulation_manager: SimulationManager = $SimulationManager
 
 func _ready() -> void:
 	stars = galaxy_generator.generate(GALAXY_SEED)
+	$SimulationManager.initialize(stars)
 
 	print("Galaxy generated with seed: ", GALAXY_SEED)
 	print("Stars generated: ", stars.size())
@@ -29,6 +31,9 @@ func _ready() -> void:
 
 	# Vue système
 	$System.planet_selected.connect(_on_planet_selected)
+	$SimulationManager.year_changed.connect(
+		_on_year_changed
+	)
 
 	# État initial
 	$StarInfo.visible = false
@@ -41,6 +46,10 @@ func _ready() -> void:
 
 	$Galaxy.visible = true
 	$Galaxy/Camera2D.enabled = true
+	
+	simulation_manager.year_changed.connect(
+		_on_year_changed
+	)
 
 
 func _on_star_selected(star: Dictionary) -> void:
@@ -56,9 +65,8 @@ func _on_star_selected(star: Dictionary) -> void:
 	current_star_id = star_id
 
 	# Générer le système à partir de son seed
-	current_system = system_generator.generate(
-		system_seed,
-		star_type
+	current_system = $SimulationManager.get_system(
+		star_id
 	)
 
 	var info := "Système #" + str(star_id) + "\n\n"
@@ -83,91 +91,132 @@ func _on_star_selected(star: Dictionary) -> void:
 func _on_planet_selected(planet: PlanetData) -> void:
 	current_planet = planet
 
-	var info := "Planète #" + str(planet.id) + "\n\n"
-	info += "Type : " + planet.type + "\n"
-	info += "Taille : " + str(planet.size) + "\n"
-	info += "Distance : "
-	info += str(round(planet.orbit_distance))
-	info += "\n"
-	info += "Lunes : " + str(planet.moon_count) + "\n"
-	info += "Température : "
-	info += str(round(planet.temperature))
-	info += " °C\n"
-	info += "Gravité : "
-	info += str(snapped(planet.gravity, 0.01))
-	info += " G\n"
-	info += "Eau : "
-	info += str(round(planet.water))
-	info += " %\n"
-	info += "Atmosphère : "
-	info += str(round(planet.atmosphere))
-	info += " %\n"
-	info += "Minéraux : "
-	info += str(round(planet.minerals))
-	info += " %\n"
+	var civilization_text := "Aucune civilisation"
 
-	info += "Énergie : "
-	info += str(round(planet.energy))
-	info += " %\n"
-
-	info += "Ressources biologiques : "
-	info += str(round(planet.biological_resources))
-	info += " %\n"
-	info += "Zone habitable : "
-	info += "Oui" if planet.in_habitable_zone else "Non"
-	info += "\n"
-	info += "Habitabilité : "
-	info += str(round(planet.habitability))
-	info += " %\n"
-	info += "Vie : "
-
-	if planet.has_life:
-		info += "Oui\n"
-		info += "Niveau de vie : "
-		info += str(round(planet.life_level))
-		info += " %\n"
-		info += "Stade : "
-		info += planet.life_stage + "\n"
-	else:
-		info += "Non\n"
-		
 	if planet.civilization != null:
-		info += "\nCivilisation : "
-		info += planet.civilization.name + "\n"
+		var civilization: CivilizationData = planet.civilization
 
-		info += "Population : "
-		info += str(planet.civilization.population) + "\n"
+		var space_stage: String = (
+			civilization.get_space_stage()
+		)
 
-		info += "Technologie : "
-		info += str(round(planet.civilization.technology)) + "\n"
+		var total_population: int = (
+			civilization.get_total_population()
+		)
 
-		info += "Économie : "
-		info += str(round(planet.civilization.economy)) + "\n"
-		info += "Capacité spatiale : "
-		info += str(round(
-			planet.civilization.space_capability
-		))
-		info += " %\n"
-		info += "Stade spatial : "
-		info += planet.civilization.get_space_stage()
-		info += "\n"
-		info += "Âge : "
-		info += str(round(planet.civilization.age)) + " ans\n"
-	
-	info += "Seed : "
-	info += str(planet.seed)
+		var total_production: float = (
+			civilization.get_total_production()
+		)
 
-	$StarInfo/InfoLabel.text = info
-	$StarInfo.visible = true
+		var trade_income: float = (
+			civilization.trade_income
+		)
 
-	$System.visible = false
-	$System/Camera2D.enabled = false
+		var relations_text := ""
 
-	$Planet.visible = true
-	$Planet/Camera2D.enabled = true
+		var relations: Array[RelationData] = (
+			$SimulationManager.get_civilization_relations(
+				civilization.id
+			)
+		)
 
-	$Planet.set_planet(planet)
+		for relation in relations:
+			var other_id: int = (
+				$SimulationManager.get_other_civilization_id(
+					relation,
+					civilization.id
+				)
+			)
 
+			var other_civilization: CivilizationData = (
+				$SimulationManager.get_civilization(
+					other_id
+				)
+			)
+
+			if other_civilization == null:
+				continue
+
+			relations_text += (
+				"\n"
+				+ other_civilization.name
+				+ " : "
+				+ relation.get_relation_status()
+				+ " ("
+				+ str(snapped(relation.relation, 0.1))
+				+ ")"
+				+ " | Commerce : "
+				+ relation.get_trade_status()
+				+ " ("
+				+ str(snapped(relation.trade_value, 0.1))
+				+ ")"
+				+ " | Distance : "
+				+ str(snapped(relation.distance, 1.0))
+			)
+
+			if relation.event_history.size() > 0:
+				relations_text += "\nÉvénements récents :"
+
+				for event in relation.event_history:
+					relations_text += (
+						"\n  • "
+						+ event
+					)
+
+		civilization_text = (
+			"Civilisation : "
+			+ civilization.name
+			+ "\n"
+			+ "Population planète : "
+			+ str(civilization.population)
+			+ "\n"
+			+ "Population totale : "
+			+ str(total_population)
+			+ "\n"
+			+ "Colonies : "
+			+ str(civilization.colony_planet_ids.size())
+			+ "\n"
+			+ "Production colonies : "
+			+ str(snapped(total_production, 0.1))
+			+ "\n"
+			+ "Revenus commerciaux : "
+			+ str(snapped(trade_income, 0.1))
+			+ "\n"
+			+ "Économie : "
+			+ str(snapped(civilization.economy, 0.1))
+			+ "\n"
+			+ "Technologie : "
+			+ str(snapped(civilization.technology, 0.1))
+			+ "\n"
+			+ "Capacité spatiale : "
+			+ str(snapped(civilization.space_capability, 0.1))
+			+ "\n"
+			+ "Stade spatial : "
+			+ space_stage
+			+ "\n\nRelations :"
+			+ relations_text
+		)
+
+	$StarInfo/InfoLabel.text = (
+		"Planète #"
+		+ str(planet.id)
+		+ "\n"
+		+ "Type : "
+		+ planet.type
+		+ "\n"
+		+ "Taille : "
+		+ str(snapped(planet.size, 0.1))
+		+ "\n"
+		+ "Habitabilité : "
+		+ str(snapped(planet.habitability, 0.1))
+		+ "\n"
+		+ "Vie : "
+		+ planet.life_stage
+		+ "\n\n"
+		+ civilization_text
+	)
+
+	$StarInfo.show()
 
 func _show_system() -> void:
 	$Galaxy.visible = false
@@ -205,9 +254,97 @@ func _show_galaxy() -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey:
-		if event.pressed and event.keycode == KEY_ESCAPE:
+		if event.pressed and event.keycode == KEY_SPACE:
+			$SimulationManager.simulation_running = (
+				not $SimulationManager.simulation_running
+			)
+
+		elif event.pressed and event.keycode == KEY_ESCAPE:
 			if $Planet.visible:
 				_show_system()
 
 			elif $System.visible:
 				_show_galaxy()
+
+func _on_year_changed(year: int) -> void:
+	simulation_year = year
+
+	print(
+		"Année simulée : ",
+		simulation_year
+	)
+
+	if $Planet.visible and current_planet != null:
+		_on_planet_selected(current_planet)
+
+
+func _try_dynamic_colonization(
+	planets: Array[PlanetData]
+) -> void:
+	for source_planet in planets:
+		var civilization: CivilizationData = (
+			source_planet.civilization
+		)
+
+		if civilization == null:
+			continue
+
+		var space_stage: String = (
+			civilization.get_space_stage()
+		)
+
+		if space_stage != "interplanetary" \
+		and space_stage != "interstellar":
+			continue
+
+		# Une civilisation ne tente pas nécessairement
+		# une colonisation chaque année.
+		var rng := RandomNumberGenerator.new()
+		rng.seed = (
+			civilization.seed
+			+ simulation_year
+			+ source_planet.id * 1000
+		)
+
+		var attempt_probability: float = 0.02
+
+		if space_stage == "interstellar":
+			attempt_probability = 0.05
+
+		if rng.randf() > attempt_probability:
+			continue
+
+		for target_planet in planets:
+			if target_planet.id == source_planet.id:
+				continue
+
+			if target_planet.civilization != null:
+				continue
+
+			if target_planet.colony_owner_id != -1:
+				continue
+
+			if target_planet.habitability < 20.0:
+				continue
+
+			var colonization_chance: float = (
+				civilization.space_capability / 100.0
+			)
+
+			if rng.randf() > colonization_chance:
+				continue
+
+			target_planet.colony_owner_id = civilization.id
+
+			civilization.colony_planet_ids.append(
+				target_planet.id
+			)
+
+			print(
+				"Colonisation : ",
+				civilization.name,
+				" colonise la planète #",
+				target_planet.id
+			)
+
+			break

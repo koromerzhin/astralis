@@ -3,6 +3,7 @@ extends RefCounted
 
 
 var id: int
+var global_id: int
 var seed: int
 var type: String
 var size: float
@@ -212,7 +213,11 @@ func _generate_civilization() -> void:
 	civilization.initialize(
 		id,
 		civilization_seed,
-		id
+		id,
+		minerals,
+		energy,
+		biological_resources,
+		habitability
 	)
 
 func _generate_resources() -> void:
