@@ -15,7 +15,8 @@ var water: float
 var atmosphere: float
 var in_habitable_zone: bool
 var habitability: float
-
+var population: int = 0
+var population_capacity: int = 0
 var has_life: bool
 var life_level: float
 var life_stage: String
@@ -42,8 +43,9 @@ func initialize(
 
 	_generate_physical_properties(star_luminosity)
 	_generate_life()
-	_generate_civilization()
 	_generate_resources()
+	_generate_population_capacity()
+	_generate_civilization()
 
 func _generate_life() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -219,6 +221,13 @@ func _generate_civilization() -> void:
 		biological_resources,
 		habitability
 	)
+	population = civilization.population
+	population = min(
+		population,
+		population_capacity
+	)
+
+	civilization.population = population
 
 func _generate_resources() -> void:
 	var rng := RandomNumberGenerator.new()
@@ -282,4 +291,51 @@ func _generate_resources() -> void:
 		biological_resources,
 		0.0,
 		100.0
+	)
+
+func _generate_population_capacity() -> void:
+	if type == "gas_giant":
+		population_capacity = 0
+		return
+
+	var capacity: float = 100000.0
+
+	# Taille de la planète
+	capacity *= size
+
+	# Habitabilité
+	var habitability_factor: float = (
+		0.25
+		+ habitability / 100.0
+	)
+
+	capacity *= habitability_factor
+
+	# Eau
+	capacity *= (
+		0.50
+		+ water / 100.0
+	)
+
+	# Atmosphère
+	capacity *= (
+		0.50
+		+ atmosphere / 100.0
+	)
+
+	# Ressources disponibles
+	var resource_factor: float = (
+		0.50
+		+ (
+			minerals
+			+ energy
+			+ biological_resources
+		) / 300.0
+	)
+
+	capacity *= resource_factor
+
+	population_capacity = max(
+		1000,
+		int(capacity)
 	)

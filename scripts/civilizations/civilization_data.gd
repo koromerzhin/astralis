@@ -5,17 +5,25 @@ extends RefCounted
 var id: int
 var global_id: int
 var seed: int
-var trade_income: float = 0.0
+
 var name: String
+
 var population: int
+
 var technology: float
 var economy: float
 var space_capability: float
 var military_power: float
+
 var age: float
+
 var home_planet_id: int
 var colony_planet_ids: Array[int] = []
+
 var colonies: Array[ColonyData] = []
+
+var trade_income: float = 0.0
+
 
 func initialize(
 	civilization_id: int,
@@ -26,11 +34,12 @@ func initialize(
 	planet_biological_resources: float,
 	planet_habitability: float
 ) -> void:
-	colony_planet_ids.clear()
-	colonies.clear()
 	id = civilization_id
 	seed = civilization_seed
 	home_planet_id = planet_id
+
+	colony_planet_ids.clear()
+	colonies.clear()
 
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
@@ -40,6 +49,11 @@ func initialize(
 	population = rng.randi_range(
 		100000,
 		10000000
+	)
+
+	age = rng.randf_range(
+		100.0,
+		10000.0
 	)
 
 	technology = _calculate_technology(
@@ -55,182 +69,185 @@ func initialize(
 		planet_habitability
 	)
 
-	age = rng.randf_range(
-		100.0,
-		10000.0
-	)
-
 	space_capability = _calculate_space_capability()
-	military_power = _calculate_military_power(rng)
 
-func _calculate_space_capability() -> float:
-	var capability: float = 0.0
-
-	capability += technology * 0.65
-	capability += economy * 0.25
-
-	capability += min(
-		age / 1000.0,
-		10.0
+	military_power = _calculate_military_power(
+		rng
 	)
 
-	capability += (
-		colony_planet_ids.size() * 2.0
+
+func initialize_from_rebellion(
+	civilization_id: int,
+	civilization_seed: int,
+	target_planet: PlanetData,
+	colony: ColonyData,
+	former_civilization: CivilizationData
+) -> void:
+	id = civilization_id
+	seed = civilization_seed
+
+	home_planet_id = (
+		target_planet.global_id
 	)
 
-	return clamp(
-		capability,
-		0.0,
-		100.0
-	)
+	colony_planet_ids.clear()
+	colonies.clear()
 
-func _generate_name(rng: RandomNumberGenerator) -> String:
-	var prefixes := [
-		"Al",
-		"Ka",
-		"Zor",
-		"Vel",
-		"Tar",
-		"Kor",
-		"Xan",
-		"Mer",
-		"Sol",
-		"Nex"
-	]
-
-	var suffixes := [
-		"ia",
-		"on",
-		"ar",
-		"us",
-		"ea",
-		"or",
-		"is",
-		"an"
-	]
-
-	var prefix: String = prefixes[
-		rng.randi_range(
-			0,
-			prefixes.size() - 1
-		)
-	]
-
-	var suffix: String = suffixes[
-		rng.randi_range(
-			0,
-			suffixes.size() - 1
-		)
-	]
-
-	return prefix + suffix
-
-func get_space_stage() -> String:
-	if space_capability < 20.0:
-		return "planetary"
-
-	if space_capability < 50.0:
-		return "orbital"
-
-	if space_capability < 75.0:
-		return "interplanetary"
-
-	return "interstellar"
-
-func _calculate_economy(
-	planet_minerals: float,
-	planet_energy: float,
-	planet_biological_resources: float,
-	planet_habitability: float
-) -> float:
-
-	var resource_score: float = (
-		planet_minerals * 0.35
-		+ planet_energy * 0.30
-		+ planet_biological_resources * 0.15
-	)
-
-	var habitability_score: float = (
-		planet_habitability * 0.20
-	)
-
-	var economy_score: float = (
-		resource_score
-		+ habitability_score
-	)
-
-	# Une petite variation déterministe
-	# évite que deux planètes identiques
-	# donnent exactement la même économie.
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
 
-	economy_score += rng.randf_range(
-		-5.0,
-		5.0
+	name = _generate_name(rng)
+
+	population = max(
+		1,
+		int(
+			float(colony.population)
+			* rng.randf_range(
+				0.7,
+				0.95
+			)
+		)
 	)
 
-	return clamp(
-		economy_score,
-		1.0,
-		100.0
+	population = min(
+		population,
+		target_planet.population_capacity
 	)
 
-func _calculate_technology(
-	civilization_age: float,
-	planet_habitability: float,
-	rng: RandomNumberGenerator
-) -> float:
+	age = rng.randf_range(
+		10.0,
+		500.0
+	)
 
-	# Une civilisation très ancienne a eu davantage
-	# de temps pour accumuler des connaissances.
-	var age_factor: float = min(
-		civilization_age / 10000.0,
+	var development_factor: float = clamp(
+		colony.development / 100.0,
+		0.0,
 		1.0
 	)
 
-	var technology_score: float = (
-		age_factor * 70.0
+	var stability_factor: float = clamp(
+		colony.stability / 100.0,
+		0.0,
+		1.0
 	)
 
-	# Une planète très favorable facilite généralement
-	# le développement d'une civilisation complexe.
-	technology_score += (
-		planet_habitability * 0.20
+	technology = (
+		former_civilization.technology
+		* 0.70
+		+ development_factor * 30.0
 	)
 
-	# Variation individuelle.
-	technology_score += rng.randf_range(
-		-15.0,
-		15.0
+	technology *= rng.randf_range(
+		0.90,
+		1.05
 	)
 
-	return clamp(
-		technology_score,
+	technology = clamp(
+		technology,
 		1.0,
 		100.0
 	)
 
-func simulate_year(planet_habitability: float) -> void:
-	var growth_rate: float = 0.0
-
-	# Une économie développée favorise la croissance.
-	growth_rate += economy * 0.00002
-
-	# Une planète habitable favorise la croissance.
-	growth_rate += planet_habitability * 0.00001
-
-	# La technologie améliore progressivement
-	# les conditions de vie.
-	growth_rate += technology * 0.00001
-
-	# Les colonies apportent une capacité
-	# supplémentaire à la civilisation.
-	growth_rate += (
-		colony_planet_ids.size() * 0.0005
+	economy = (
+		colony.production * 0.60
+		+ former_civilization.economy * 0.25
+		+ target_planet.habitability * 0.15
 	)
 
-	# Limitation de la croissance annuelle.
+	economy *= rng.randf_range(
+		0.85,
+		1.05
+	)
+
+	economy = clamp(
+		economy,
+		1.0,
+		100.0
+	)
+
+	space_capability = (
+		_calculate_space_capability()
+	)
+
+	military_power = (
+		former_civilization.military_power * 0.50
+		+ colony.production * 0.20
+		+ technology * 0.20
+		+ stability_factor * 10.0
+	)
+
+	military_power *= rng.randf_range(
+		0.85,
+		1.0
+	)
+
+	military_power = clamp(
+		military_power,
+		1.0,
+		100.0
+	)
+
+
+func simulate_year(
+	planet_habitability: float,
+	planet_population_capacity: int
+) -> void:
+	var growth_rate: float = 0.0
+
+	# Économie
+	growth_rate += (
+		economy * 0.00002
+	)
+
+	# Habitabilité
+	growth_rate += (
+		planet_habitability * 0.00001
+	)
+
+	# Technologie
+	growth_rate += (
+		technology * 0.00001
+	)
+
+	# Colonies
+	growth_rate += (
+		colony_planet_ids.size()
+		* 0.0005
+	)
+
+	# Production des colonies
+	growth_rate += (
+		get_total_production()
+		* 0.00001
+	)
+
+	# Bonus lié au niveau économique
+	var stability_bonus: float = (
+		(economy / 100.0)
+		* 0.002
+	)
+
+	growth_rate += stability_bonus
+
+	# Surpopulation
+	var population_ratio: float = (
+		float(population)
+		/ float(
+			max(
+				planet_population_capacity,
+				1
+			)
+		)
+	)
+
+	if population_ratio > 0.8:
+		var overcrowding: float = (
+			(population_ratio - 0.8)
+			* 0.05
+		)
+
+		growth_rate -= overcrowding
+
 	growth_rate = clamp(
 		growth_rate,
 		-0.01,
@@ -246,6 +263,17 @@ func simulate_year(planet_habitability: float) -> void:
 		1,
 		int(new_population)
 	)
+
+	population = min(
+		population,
+		max(
+			planet_population_capacity,
+			1
+		)
+	)
+
+	simulate_colonies()
+
 
 func simulate_economy_and_technology(
 	planet_habitability: float,
@@ -279,13 +307,10 @@ func simulate_economy_and_technology(
 		+ trade_bonus
 	)
 
-	# Une économie évolue progressivement vers son potentiel.
 	economy += (
 		economy_target - economy
 	) * 0.01
 
-	# Une économie forte accélère légèrement
-	# le développement technologique.
 	var technology_growth: float = (
 		(economy / 100.0) * 0.15
 		+ (population / 10000000.0) * 0.05
@@ -306,7 +331,10 @@ func simulate_economy_and_technology(
 		100.0
 	)
 
-	space_capability = _calculate_space_capability()
+	space_capability = (
+		_calculate_space_capability()
+	)
+
 	military_power += (
 		technology * 0.01
 		+ economy * 0.005
@@ -319,10 +347,164 @@ func simulate_economy_and_technology(
 		100.0
 	)
 
+
+func _calculate_technology(
+	civilization_age: float,
+	planet_habitability: float,
+	rng: RandomNumberGenerator
+) -> float:
+	var value: float = 0.0
+
+	value += min(
+		civilization_age / 100.0,
+		60.0
+	)
+
+	value += (
+		planet_habitability * 0.25
+	)
+
+	value += rng.randf_range(
+		-10.0,
+		10.0
+	)
+
+	return clamp(
+		value,
+		1.0,
+		100.0
+	)
+
+
+func _calculate_economy(
+	planet_minerals: float,
+	planet_energy: float,
+	planet_biological_resources: float,
+	planet_habitability: float
+) -> float:
+	var value: float = 0.0
+
+	value += (
+		planet_minerals * 0.35
+	)
+
+	value += (
+		planet_energy * 0.30
+	)
+
+	value += (
+		planet_biological_resources * 0.15
+	)
+
+	value += (
+		planet_habitability * 0.20
+	)
+
+	return clamp(
+		value,
+		1.0,
+		100.0
+	)
+
+
+func _calculate_space_capability() -> float:
+	var capability: float = 0.0
+
+	capability += (
+		technology * 0.65
+	)
+
+	capability += (
+		economy * 0.25
+	)
+
+	capability += min(
+		age / 1000.0,
+		10.0
+	)
+
+	capability += (
+		colony_planet_ids.size() * 2.0
+	)
+
+	return clamp(
+		capability,
+		0.0,
+		100.0
+	)
+
+
+func _calculate_military_power(
+	rng: RandomNumberGenerator
+) -> float:
+	var military: float = 0.0
+
+	military += (
+		technology * 0.45
+	)
+
+	military += (
+		economy * 0.30
+	)
+
+	military += (
+		space_capability * 0.25
+	)
+
+	military += rng.randf_range(
+		-10.0,
+		10.0
+	)
+
+	return clamp(
+		military,
+		1.0,
+		100.0
+	)
+
+
+func get_space_stage() -> String:
+	if space_capability < 20.0:
+		return "planetary"
+
+	if space_capability < 50.0:
+		return "orbital"
+
+	if space_capability < 75.0:
+		return "interplanetary"
+
+	return "interstellar"
+
+
+func get_interaction_range() -> float:
+	var space_stage: String = (
+		get_space_stage()
+	)
+
+	match space_stage:
+		"planetary":
+			return 50.0
+
+		"orbital":
+			return 150.0
+
+		"interplanetary":
+			return 400.0
+
+		"interstellar":
+			return 800.0
+
+		_:
+			return 50.0
+
+
 func add_colony(
 	colony_seed: int,
 	target_planet: PlanetData
 ) -> void:
+	if target_planet == null:
+		return
+
 	if colony_planet_ids.has(
 		target_planet.global_id
 	):
@@ -344,6 +526,7 @@ func add_colony(
 		colony
 	)
 
+
 func get_total_population() -> int:
 	var total: int = population
 
@@ -351,6 +534,7 @@ func get_total_population() -> int:
 		total += colony.population
 
 	return total
+
 
 func get_total_production() -> float:
 	var total: float = 0.0
@@ -360,35 +544,70 @@ func get_total_production() -> float:
 
 	return total
 
+
 func reset_trade_income() -> void:
 	trade_income = 0.0
 
 
-func add_trade_income(value: float) -> void:
+func add_trade_income(
+	value: float
+) -> void:
 	trade_income += value
 
-func get_interaction_range() -> float:
-	var space_stage: String = get_space_stage()
 
-	match space_stage:
-		"planetary":
-			return 50.0
+func remove_colony(
+	planet_id: int
+) -> ColonyData:
+	for i in colonies.size():
+		var colony: ColonyData = (
+			colonies[i]
+		)
 
-		"orbital":
-			return 150.0
+		if colony.planet_id != planet_id:
+			continue
 
-		"interplanetary":
-			return 400.0
+		colonies.remove_at(i)
 
-		"interstellar":
-			return 800.0
+		colony_planet_ids.erase(
+			planet_id
+		)
 
-		_:
-			return 50.0
+		return colony
+
+	return null
+
+
+func take_over_colony(
+	colony: ColonyData
+) -> void:
+	if colony == null:
+		return
+
+	if colony_planet_ids.has(
+		colony.planet_id
+	):
+		return
+
+	colony_planet_ids.append(
+		colony.planet_id
+	)
+
+	colonies.append(
+		colony
+	)
+
+
+func simulate_colonies() -> void:
+	for colony in colonies:
+		if not colony.is_occupied():
+			continue
+
+		if colony.stability >= 70.0:
+			colony.annex()
+
 
 func apply_war_effect() -> void:
 	economy -= 2.0
-
 	technology -= 0.2
 
 	economy = clamp(
@@ -403,25 +622,6 @@ func apply_war_effect() -> void:
 		100.0
 	)
 
-func _calculate_military_power(
-	rng: RandomNumberGenerator
-) -> float:
-	var military: float = 0.0
-
-	military += technology * 0.45
-	military += economy * 0.30
-	military += space_capability * 0.25
-
-	military += rng.randf_range(
-		-10.0,
-		10.0
-	)
-
-	return clamp(
-		military,
-		1.0,
-		100.0
-	)
 
 func apply_military_losses(
 	amount: float
@@ -434,35 +634,52 @@ func apply_military_losses(
 		100.0
 	)
 
-func remove_colony(
-	planet_id: int
-) -> ColonyData:
-	for i in colonies.size():
-		var colony: ColonyData = colonies[i]
 
-		if colony.planet_id != planet_id:
-			continue
+func _generate_name(
+	rng: RandomNumberGenerator
+) -> String:
+	var prefixes := [
+		"Al",
+		"Bel",
+		"Kor",
+		"Nar",
+		"Vel",
+		"Tar",
+		"Zor",
+		"Kal",
+		"Mer",
+		"Sol"
+	]
 
-		colonies.remove_at(i)
-		colony_planet_ids.erase(planet_id)
+	var suffixes := [
+		"ans",
+		"iens",
+		"ites",
+		"ari",
+		"ori",
+		"ons",
+		"es",
+		"aks",
+		"ums",
+		"ens"
+	]
 
-		return colony
-
-	return null
-
-func take_over_colony(
-	colony: ColonyData
-) -> void:
-	if colony == null:
-		return
-
-	if colony_planet_ids.has(colony.planet_id):
-		return
-
-	colony_planet_ids.append(
-		colony.planet_id
+	var prefix: String = (
+		prefixes[
+			rng.randi_range(
+				0,
+				prefixes.size() - 1
+			)
+		]
 	)
 
-	colonies.append(
-		colony
+	var suffix: String = (
+		suffixes[
+			rng.randi_range(
+				0,
+				suffixes.size() - 1
+			)
+		]
 	)
+
+	return prefix + suffix

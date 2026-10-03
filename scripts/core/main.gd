@@ -116,7 +116,7 @@ func _on_planet_selected(planet: PlanetData) -> void:
 
 		var relations: Array[RelationData] = (
 			$SimulationManager.get_civilization_relations(
-				civilization.id
+				civilization.global_id
 			)
 		)
 
@@ -124,7 +124,7 @@ func _on_planet_selected(planet: PlanetData) -> void:
 			var other_id: int = (
 				$SimulationManager.get_other_civilization_id(
 					relation,
-					civilization.id
+					civilization.global_id
 				)
 			)
 
