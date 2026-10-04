@@ -51,48 +51,67 @@ func initialize(
 	trade_value = 0.0
 
 func simulate_year(
-	economy_a: float,
-	economy_b: float,
-	technology_a: float,
-	technology_b: float
+	civilization_a_economy: float,
+	civilization_a_technology: float,
+	civilization_b_economy: float,
+	civilization_b_technology: float,
+	civilization_a: CivilizationData = null,
+	civilization_b: CivilizationData = null
 ) -> void:
-	var economic_compatibility: float = (
-		100.0
-		- abs(economy_a - economy_b)
-	)
+	if at_war:
+		return
 
-	var technology_compatibility: float = (
-		100.0
-		- abs(technology_a - technology_b)
-	)
+	var relation_change: float = 0.0
 
-	var compatibility: float = (
-		economic_compatibility * 0.5
-		+ technology_compatibility * 0.5
-	)
+	# Économie et technologie favorisent légèrement
+	# des relations stables.
+	relation_change += (
+		(
+			civilization_a_economy
+			+ civilization_b_economy
+		) - 100.0
+	) * 0.002
 
-	var relation_target: float = (
-		compatibility - 50.0
-	)
+	relation_change += (
+		(
+			civilization_a_technology
+			+ civilization_b_technology
+		) - 100.0
+	) * 0.001
 
-	# Le commerce et la confiance
-	# influencent légèrement la relation.
-	var trade_bonus: float = (
-		trade * 0.10
-	)
+	# Personnalité de la civilisation A.
+	if civilization_a != null:
+		relation_change += get_personality_pressure(
+			civilization_a,
+			civilization_b
+		)
 
-	var trust_bonus: float = (
-		(trust - 50.0) * 0.10
-	)
+	# Personnalité de la civilisation B.
+	if civilization_b != null:
+		relation_change += get_personality_pressure(
+			civilization_b,
+			civilization_a
+		)
 
-	relation_target += (
-		trade_bonus
-		+ trust_bonus
-	)
+	# Le commerce existant améliore progressivement
+	# les relations.
+	relation_change += trade * 0.01
 
-	relation += (
-		relation_target - relation
+	# La confiance facilite l'amélioration des relations.
+	relation_change += (
+		trust - 50.0
 	) * 0.01
+
+	# Une relation déjà très mauvaise évolue plus lentement
+	# vers une situation positive.
+	if relation < -60.0:
+		relation_change *= 0.5
+
+	# Une relation très positive devient naturellement stable.
+	if relation > 70.0:
+		relation_change *= 0.5
+
+	relation += relation_change
 
 	relation = clamp(
 		relation,
@@ -100,57 +119,19 @@ func simulate_year(
 		100.0
 	)
 
-	# Évolution de la confiance.
-	if relation > 20.0:
-		trust += 0.2
-	else:
-		trust -= 0.05
+	# La confiance suit progressivement la relation.
+	var trust_target: float = (
+		relation + 100.0
+	) * 0.5
 
-	# Un commerce important renforce
-	# progressivement la confiance.
-	if trade > 30.0:
-		trust += 0.1
+	trust += (
+		trust_target - trust
+	) * 0.02
 
 	trust = clamp(
 		trust,
 		0.0,
 		100.0
-	)
-
-	# Calcul du commerce possible
-	# en fonction de la distance.
-	var distance_factor: float = clamp(
-		1.0 - (distance / 800.0),
-		0.0,
-		1.0
-	)
-
-	var trade_target: float = 0.0
-
-	if not at_war and relation > 30.0:
-		trade_target = (
-			100.0
-			* distance_factor
-		)
-
-	trade += (
-		trade_target - trade
-	) * 0.05
-
-	trade = clamp(
-		trade,
-		0.0,
-		100.0
-	)
-
-	# Valeur économique réelle du commerce.
-	trade_value = (
-		trade
-		* 0.5
-		* min(
-			(economy_a + economy_b) / 100.0,
-			2.0
-		)
 	)
 
 func get_relation_status() -> String:
@@ -708,3 +689,61 @@ func join_war(current_year_value: int) -> String:
 		"Entrée en guerre en "
 		+ str(current_year_value)
 	)
+
+func get_personality_pressure(
+	civilization: CivilizationData,
+	other_civilization: CivilizationData
+) -> float:
+	if civilization == null:
+		return 0.0
+
+	if other_civilization == null:
+		return 0.0
+
+	var pressure: float = 0.0
+
+	# Une civilisation agressive dégrade plus facilement
+	# les relations avec ses voisins.
+	pressure -= (
+		civilization.aggression
+		- 50.0
+	) * 0.08
+
+	# Le militarisme augmente également la tension.
+	pressure -= (
+		civilization.militarism
+		- 50.0
+	) * 0.05
+
+	# La diplomatie améliore naturellement les relations.
+	pressure += (
+		civilization.diplomacy
+		- 50.0
+	) * 0.08
+
+	# Le commerce favorise les relations pacifiques.
+	pressure += (
+		civilization.commerce
+		- 50.0
+	) * 0.04
+
+	# L'isolationnisme réduit légèrement les interactions.
+	pressure -= (
+		civilization.isolationism
+		- 50.0
+	) * 0.03
+
+	# L'expansionnisme crée une tension supplémentaire
+	# lorsqu'une autre civilisation est proche.
+	var distance_factor: float = clamp(
+		1.0 - distance / 800.0,
+		0.0,
+		1.0
+	)
+
+	pressure -= (
+		civilization.expansionism
+		- 50.0
+	) * 0.05 * distance_factor
+
+	return pressure

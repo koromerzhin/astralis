@@ -5,25 +5,24 @@ extends RefCounted
 var id: int
 var global_id: int
 var seed: int
-
 var name: String
-
+var aggression: float = 50.0
+var expansionism: float = 50.0
+var militarism: float = 50.0
+var diplomacy: float = 50.0
+var commerce: float = 50.0
+var science: float = 50.0
+var isolationism: float = 50.0
 var population: int
-
 var technology: float
 var economy: float
 var space_capability: float
 var military_power: float
-
 var age: float
-
 var home_planet_id: int
 var colony_planet_ids: Array[int] = []
-
 var colonies: Array[ColonyData] = []
-
 var trade_income: float = 0.0
-
 
 func initialize(
 	civilization_id: int,
@@ -36,6 +35,10 @@ func initialize(
 ) -> void:
 	id = civilization_id
 	seed = civilization_seed
+
+	_generate_personality(
+		civilization_seed
+	)
 	home_planet_id = planet_id
 
 	colony_planet_ids.clear()
@@ -576,7 +579,6 @@ func take_over_colony(
 		colony
 	)
 
-
 func simulate_colonies() -> void:
 	for colony in colonies:
 		if colony == null:
@@ -726,3 +728,317 @@ func _generate_name(
 
 func reset_trade_income() -> void:
 	trade_income = 0.0
+
+func has_colony(
+	planet_id: int
+) -> bool:
+	return colony_planet_ids.has(
+		planet_id
+	)
+
+func _generate_personality(
+	civilization_seed: int
+) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = civilization_seed
+
+	aggression = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+	expansionism = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+	militarism = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+	diplomacy = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+	commerce = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+	science = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+	isolationism = rng.randf_range(
+		10.0,
+		90.0
+	)
+
+func get_colonization_desire() -> float:
+	var desire: float = 0.0
+
+	desire += expansionism * 0.55
+	desire += science * 0.15
+	desire += economy * 0.10
+	desire += space_capability * 0.10
+
+	desire -= isolationism * 0.20
+
+	return clamp(
+		desire,
+		0.0,
+		100.0
+	)
+
+func get_personality_type() -> String:
+	var scores := {
+		"militariste": (
+			aggression * 0.5
+			+ militarism * 0.5
+		),
+		"expansionniste": (
+			expansionism * 0.6
+			+ aggression * 0.2
+			+ science * 0.2
+		),
+		"marchande": (
+			commerce * 0.6
+			+ diplomacy * 0.3
+			+ science * 0.1
+		),
+		"scientifique": (
+			science * 0.7
+			+ diplomacy * 0.2
+			+ commerce * 0.1
+		),
+		"diplomatique": (
+			diplomacy * 0.6
+			+ commerce * 0.2
+			+ isolationism * 0.2
+		),
+		"isolationniste": (
+			isolationism * 0.8
+			+ diplomacy * 0.1
+			+ science * 0.1
+		)
+	}
+
+	var best_type: String = "neutre"
+	var best_score: float = -1.0
+
+	for personality_type in scores:
+		var score: float = scores[
+			personality_type
+		]
+
+		if score > best_score:
+			best_score = score
+			best_type = personality_type
+
+	return best_type
+
+
+func get_primary_goal() -> String:
+	var goals := {
+		"coloniser": (
+			expansionism * 0.40
+			+ science * 0.15
+			+ space_capability * 0.20
+			- isolationism * 0.15
+		),
+
+		"faire_la_guerre": (
+			aggression * 0.40
+			+ militarism * 0.40
+			+ expansionism * 0.10
+			- diplomacy * 0.15
+		),
+
+		"commercer": (
+			commerce * 0.60
+			+ diplomacy * 0.25
+			+ economy * 0.15
+		),
+
+		"developper_la_science": (
+			science * 0.65
+			+ technology * 0.20
+			+ diplomacy * 0.10
+		),
+
+		"creer_des_alliances": (
+			diplomacy * 0.60
+			+ commerce * 0.20
+			+ science * 0.10
+		),
+
+		"s_isoler": (
+			isolationism * 0.70
+			+ science * 0.15
+			- expansionism * 0.20
+			- aggression * 0.10
+		)
+	}
+
+	var best_goal: String = "developper_la_science"
+	var best_score: float = -INF
+
+	for goal in goals:
+		var score: float = goals[goal]
+
+		if score > best_score:
+			best_score = score
+			best_goal = goal
+
+	return best_goal
+
+func get_secondary_goal() -> String:
+	var goals := {
+		"coloniser": expansionism
+			+ science * 0.25,
+
+		"faire_la_guerre": aggression
+			+ militarism * 0.5,
+
+		"commercer": commerce
+			+ diplomacy * 0.5,
+
+		"developper_la_science": science
+			+ technology * 0.5,
+
+		"creer_des_alliances": diplomacy
+			+ commerce * 0.25,
+
+		"s_isoler": isolationism
+			- expansionism * 0.25
+	}
+
+	var primary_goal: String = get_primary_goal()
+
+	var best_goal: String = "developper_la_science"
+	var best_score: float = -INF
+
+	for goal in goals:
+		if goal == primary_goal:
+			continue
+
+		var score: float = goals[goal]
+
+		if score > best_score:
+			best_score = score
+			best_goal = goal
+
+	return best_goal
+
+func apply_primary_goal() -> void:
+	var goal: String = get_primary_goal()
+
+	match goal:
+		"coloniser":
+			space_capability += 0.15
+			technology += 0.05
+
+		"faire_la_guerre":
+			military_power += 0.20
+			technology += 0.05
+
+		"commercer":
+			economy += 0.20
+
+		"developper_la_science":
+			technology += 0.20
+
+		"creer_des_alliances":
+			diplomacy += 0.0
+
+		"s_isoler":
+			technology += 0.05
+
+	technology = clamp(
+		technology,
+		1.0,
+		100.0
+	)
+
+	economy = clamp(
+		economy,
+		1.0,
+		100.0
+	)
+
+	military_power = clamp(
+		military_power,
+		1.0,
+		100.0
+	)
+
+	space_capability = clamp(
+		space_capability,
+		0.0,
+		100.0
+	)
+
+func get_war_desire(
+	other_civilization: CivilizationData
+) -> float:
+	if other_civilization == null:
+		return 0.0
+
+	var desire: float = 0.0
+
+	# Agressivité et militarisme constituent la base.
+	desire += aggression * 0.40
+	desire += militarism * 0.30
+
+	# L'expansionnisme pousse à conquérir.
+	desire += expansionism * 0.20
+
+	# La diplomatie réduit l'envie de conflit.
+	desire -= diplomacy * 0.20
+
+	# L'isolationnisme réduit également les conflits
+	# avec les autres civilisations.
+	desire -= isolationism * 0.10
+
+	# Une civilisation technologiquement supérieure
+	# est davantage capable de mener une guerre.
+	var military_advantage: float = (
+		military_power
+		- other_civilization.military_power
+	)
+
+	desire += clamp(
+		military_advantage * 0.20,
+		-20.0,
+		20.0
+	)
+
+	return clamp(
+		desire,
+		0.0,
+		100.0
+	)
+	
+func wants_to_declare_war(
+	other_civilization: CivilizationData
+) -> bool:
+	if other_civilization == null:
+		return false
+
+	if other_civilization.global_id == global_id:
+		return false
+
+	var desire: float = get_war_desire(
+		other_civilization
+	)
+
+	if desire < 65.0:
+		return false
+
+	if military_power < 20.0:
+		return false
+
+	return true
