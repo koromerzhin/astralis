@@ -23,6 +23,8 @@ var last_war_winner: int = -1
 var revenge_a: float = 0.0
 var revenge_b: float = 0.0
 var war_ended_year: int = -1
+var territorial_demands: Dictionary = {}
+var last_demand_year: int = -1
 
 func initialize(
 	first_civilization_id: int,

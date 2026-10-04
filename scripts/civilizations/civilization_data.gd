@@ -21,8 +21,13 @@ var military_power: float
 var age: float
 var home_planet_id: int
 var colony_planet_ids: Array[int] = []
+var explored_system_ids: Array[int] = []
+var known_civilization_ids: Array[int] = []
 var colonies: Array[ColonyData] = []
 var trade_income: float = 0.0
+var colony_income: float = 0.0
+var expansion_budget: float = 0.0
+var known_civilization_system_ids: Dictionary = {}
 
 func initialize(
 	civilization_id: int,
@@ -1042,3 +1047,404 @@ func wants_to_declare_war(
 		return false
 
 	return true
+
+func get_trade_desire(
+	other_civilization: CivilizationData
+) -> float:
+	if other_civilization == null:
+		return 0.0
+
+	if other_civilization.global_id == global_id:
+		return 0.0
+
+	var desire: float = 0.0
+
+	# Le commerce est le facteur principal.
+	desire += commerce * 0.55
+
+	# La diplomatie facilite les échanges.
+	desire += diplomacy * 0.20
+
+	# Une économie développée a davantage intérêt
+	# à rechercher des partenaires.
+	desire += economy * 0.15
+
+	# Les civilisations scientifiques sont légèrement
+	# plus ouvertes aux échanges technologiques.
+	desire += science * 0.05
+
+	# L'isolationnisme réduit fortement l'intérêt.
+	desire -= isolationism * 0.20
+
+	# Une forte agressivité rend les échanges moins
+	# prioritaires.
+	desire -= aggression * 0.05
+
+	# Un avantage économique augmente légèrement
+	# l'intérêt de commercer.
+	var economic_difference: float = (
+		economy
+		- other_civilization.economy
+	)
+
+	desire += clamp(
+		economic_difference * 0.10,
+		-10.0,
+		10.0
+	)
+
+	return clamp(
+		desire,
+		0.0,
+		100.0
+	)
+
+func wants_to_trade(
+	other_civilization: CivilizationData
+) -> bool:
+	if other_civilization == null:
+		return false
+
+	if other_civilization.global_id == global_id:
+		return false
+
+	var desire: float = get_trade_desire(
+		other_civilization
+	)
+
+	if desire < 45.0:
+		return false
+
+	return true
+
+func get_alliance_desire(
+	other_civilization: CivilizationData
+) -> float:
+	if other_civilization == null:
+		return 0.0
+
+	if other_civilization.global_id == global_id:
+		return 0.0
+
+	var desire: float = 0.0
+
+	# La diplomatie est le facteur principal.
+	desire += diplomacy * 0.55
+
+	# Le commerce crée des intérêts communs.
+	desire += commerce * 0.20
+
+	# Les civilisations scientifiques sont légèrement
+	# plus favorables aux coopérations.
+	desire += science * 0.10
+
+	# Le militarisme réduit l'intérêt pour une alliance
+	# pacifique.
+	desire -= militarism * 0.10
+
+	# L'agressivité réduit également cette volonté.
+	desire -= aggression * 0.10
+
+	# L'isolationnisme est fortement défavorable.
+	desire -= isolationism * 0.20
+
+	return clamp(
+		desire,
+		0.0,
+		100.0
+	)
+	
+	
+func wants_to_form_alliance(
+	other_civilization: CivilizationData
+) -> bool:
+	if other_civilization == null:
+		return false
+
+	if other_civilization.global_id == global_id:
+		return false
+
+	var desire: float = (
+		get_alliance_desire(
+			other_civilization
+		)
+	)
+
+	if desire < 50.0:
+		return false
+
+	return true
+
+
+func get_exploration_desire() -> float:
+	var desire: float = 0.0
+
+	# La science est le facteur principal.
+	desire += science * 0.50
+
+	# Une civilisation technologiquement avancée
+	# est davantage capable d'explorer.
+	desire += technology * 0.20
+
+	# La capacité spatiale est indispensable.
+	desire += space_capability * 0.20
+
+	# L'expansionnisme pousse à découvrir de nouveaux territoires.
+	desire += expansionism * 0.15
+
+	# L'isolationnisme réduit fortement l'envie d'explorer.
+	desire -= isolationism * 0.20
+
+	return clamp(
+		desire,
+		0.0,
+		100.0
+	)
+	
+func wants_to_explore() -> bool:
+	if get_space_stage() == "planetary":
+		return false
+
+	var desire: float = (
+		get_exploration_desire()
+	)
+
+	if desire < 40.0:
+		return false
+
+	return true
+	
+func has_explored_system(
+	system_id: int
+) -> bool:
+	return explored_system_ids.has(
+		system_id
+	)
+	
+func explore_system(
+	system_id: int
+) -> void:
+	if system_id < 0:
+		return
+
+	if explored_system_ids.has(
+		system_id
+	):
+		return
+
+	explored_system_ids.append(
+		system_id
+	)
+
+func knows_civilization(
+	civilization_id: int
+) -> bool:
+	return known_civilization_ids.has(
+		civilization_id
+	)
+	
+func discover_civilization(
+	civilization_id: int
+) -> void:
+	if civilization_id < 0:
+		return
+
+	if civilization_id == global_id:
+		return
+
+	if known_civilization_ids.has(
+		civilization_id
+	):
+		return
+
+	known_civilization_ids.append(
+		civilization_id
+	)
+
+func discover_civilization_system(
+	civilization_id: int,
+	system_id: int
+) -> void:
+	if civilization_id < 0:
+		return
+
+	if system_id < 0:
+		return
+
+	if civilization_id == global_id:
+		return
+
+	if not known_civilization_system_ids.has(
+		civilization_id
+	):
+		known_civilization_system_ids[
+			civilization_id
+		] = []
+
+	var known_systems: Array = (
+		known_civilization_system_ids[
+			civilization_id
+		]
+	)
+
+	if known_systems.has(system_id):
+		return
+
+	known_systems.append(
+		system_id
+	)
+	
+func knows_civilization_system(
+	civilization_id: int,
+	system_id: int
+) -> bool:
+	if not known_civilization_system_ids.has(
+		civilization_id
+	):
+		return false
+
+	var known_systems: Array = (
+		known_civilization_system_ids[
+			civilization_id
+		]
+	)
+
+	return known_systems.has(
+		system_id
+	)
+
+func simulate_colony_economy() -> void:
+	colony_income = 0.0
+
+	for colony in colonies:
+		if colony == null:
+			continue
+
+		var colony_income_value: float = (
+			colony.production
+			* 0.5
+		)
+
+		if colony.political_status == ColonyData.STATUS_OCCUPIED:
+			colony_income_value *= 0.5
+		elif colony.political_status == ColonyData.STATUS_ANNEXED:
+			colony_income_value *= 0.75
+
+		colony_income += colony_income_value
+
+	colony_income = max(
+		colony_income,
+		0.0
+	)
+
+	expansion_budget = (
+		colony_income
+		* 0.10
+	)
+
+	expansion_budget += (
+		trade_income
+		* 0.05
+	)
+
+	expansion_budget = clamp(
+		expansion_budget,
+		0.0,
+		100.0
+	)
+
+	economy += (
+		colony_income
+		* 0.01
+	)
+
+	economy += (
+		trade_income
+		* 0.005
+	)
+
+	economy = clamp(
+		economy,
+		1.0,
+		100.0
+	)
+
+func simulate_strategic_development() -> void:
+	var available_development: float = (
+		economy * 0.02
+	)
+
+	available_development += (
+		colony_income * 0.01
+	)
+
+	available_development += (
+		trade_income * 0.01
+	)
+
+	available_development = max(
+		available_development,
+		0.0
+	)
+
+	var science_factor: float = (
+		science / 100.0
+	)
+
+	var militarism_factor: float = (
+		militarism / 100.0
+	)
+
+	var expansion_factor: float = (
+		expansionism / 100.0
+	)
+
+	var diplomacy_factor: float = (
+		diplomacy / 100.0
+	)
+
+	technology += (
+		available_development
+		* (
+			0.50
+			+ science_factor * 0.50
+		)
+	)
+
+	space_capability += (
+		available_development
+		* (
+			0.20
+			+ expansion_factor * 0.40
+			+ science_factor * 0.20
+		)
+	)
+
+	military_power += (
+		available_development
+		* (
+			0.10
+			+ militarism_factor * 0.60
+		)
+	)
+
+	if diplomacy_factor > 0.70:
+		military_power *= 0.998
+
+	technology = clamp(
+		technology,
+		1.0,
+		100.0
+	)
+
+	space_capability = clamp(
+		space_capability,
+		0.0,
+		100.0
+	)
+
+	military_power = clamp(
+		military_power,
+		0.0,
+		100.0
+	)
