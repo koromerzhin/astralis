@@ -24,6 +24,7 @@ var civilization: CivilizationData
 var minerals: float
 var energy: float
 var biological_resources: float
+var colony_owner_id: int = -1
 
 func initialize(
 	planet_id: int,
@@ -58,21 +59,37 @@ func _generate_life() -> void:
 	if type == "gas_giant":
 		return
 
-	var life_probability: float
+	# Probabilité de base d'apparition de la vie.
+	var life_probability: float = (
+		habitability / 100.0
+	)
 
-	if in_habitable_zone:
-		life_probability = habitability / 100.0
-	else:
-		life_probability = habitability / 500.0
+	# Hors zone habitable, la vie reste possible,
+	# mais devient beaucoup plus rare.
+	if not in_habitable_zone:
+		life_probability *= 0.15
+
+	life_probability = clamp(
+		life_probability,
+		0.0,
+		0.95
+	)
 
 	if rng.randf() > life_probability:
 		return
 
 	has_life = true
 
-	life_level = rng.randf_range(10.0, 100.0)
+	# Niveau d'évolution initial.
+	# L'habitabilité influence l'évolution mais ne l'écrase pas.
+	life_level = rng.randf_range(
+		20.0,
+		100.0
+	)
 
-	life_level *= habitability / 100.0
+	life_level += (
+		habitability - 50.0
+	) * 0.25
 
 	life_level = clamp(
 		life_level,
@@ -83,7 +100,7 @@ func _generate_life() -> void:
 	if life_level < 35.0:
 		life_stage = "primitive"
 
-	elif life_level < 75.0:
+	elif life_level < 70.0:
 		life_stage = "complex"
 
 	else:

@@ -191,6 +191,9 @@ func _generate_colonies(
 ) -> void:
 
 	for civilization_planet in planets:
+		if civilization_planet == null:
+			continue
+
 		var civilization: CivilizationData = (
 			civilization_planet.civilization
 		)
@@ -198,20 +201,26 @@ func _generate_colonies(
 		if civilization == null:
 			continue
 
-		if civilization.get_space_stage() != "interplanetary" \
-		and civilization.get_space_stage() != "interstellar":
+		var space_stage: String = (
+			civilization.get_space_stage()
+		)
+
+		if space_stage != "interplanetary" \
+		and space_stage != "interstellar":
 			continue
 
 		var maximum_colonies: int = 0
 
-		if civilization.get_space_stage() == "interplanetary":
-			maximum_colonies = rng.randi_range(0, 2)
+		if space_stage == "interplanetary":
+			maximum_colonies = rng.randi_range(1, 2)
 		else:
 			maximum_colonies = rng.randi_range(1, 3)
 
+		var available_targets: Array[PlanetData] = []
+
 		for target_planet in planets:
-			if maximum_colonies <= 0:
-				break
+			if target_planet == null:
+				continue
 
 			if target_planet.id == civilization_planet.id:
 				continue
@@ -222,17 +231,27 @@ func _generate_colonies(
 			if target_planet.colony_owner_id != -1:
 				continue
 
-			# Une planète très hostile est moins susceptible
-			# d'être colonisée.
 			if target_planet.habitability < 20.0:
 				continue
 
-			var colonization_probability: float = (
-				civilization.space_capability / 100.0
+			available_targets.append(
+				target_planet
 			)
 
-			if rng.randf() > colonization_probability:
-				continue
+		if available_targets.is_empty():
+			continue
+
+		available_targets.shuffle()
+
+		var colonies_to_create: int = min(
+			maximum_colonies,
+			available_targets.size()
+		)
+
+		for i in colonies_to_create:
+			var target_planet: PlanetData = (
+				available_targets[i]
+			)
 
 			target_planet.colony_owner_id = (
 				civilization.global_id
@@ -244,5 +263,3 @@ func _generate_colonies(
 				colony_seed,
 				target_planet
 			)
-
-			maximum_colonies -= 1

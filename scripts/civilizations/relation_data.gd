@@ -12,6 +12,7 @@ var civilization_b_id: int
 var relation: float = 0.0
 var trade: float = 0.0
 var trust: float = 50.0
+var alliance: bool = false
 var at_war: bool = false
 var war_score: float = 0.0
 var war_years: int = 0
@@ -19,6 +20,9 @@ var trade_value: float = 0.0
 var distance: float = 0.0
 var event_history: Array[String] = []
 var last_war_winner: int = -1
+var revenge_a: float = 0.0
+var revenge_b: float = 0.0
+var war_ended_year: int = -1
 
 func initialize(
 	first_civilization_id: int,
@@ -436,7 +440,7 @@ func end_war(
 	return message
 
 func simulate_war_year(
-	current_year: int,
+	current_year_value: int,
 	military_power_a: float,
 	military_power_b: float
 ) -> String:
@@ -450,22 +454,40 @@ func simulate_war_year(
 		- military_power_b
 	)
 
-	war_score += (
-		power_difference * 0.01
+	var total_power: float = (
+		military_power_a
+		+ military_power_b
+	)
+
+	if total_power <= 0.0:
+		return ""
+
+	var power_ratio: float = (
+		power_difference
+		/ total_power
 	)
 
 	var rng := RandomNumberGenerator.new()
 
 	rng.seed = (
-		civilization_a_id
-		+ civilization_b_id
-		+ current_year
+		civilization_a_id * 31
+		+ civilization_b_id * 17
+		+ current_year_value * 997
 	)
 
-	war_score += rng.randf_range(
-		-2.0,
-		2.0
+	var yearly_variation: float = (
+		rng.randf_range(
+			-0.05,
+			0.05
+		)
 	)
+
+	var score_change: float = (
+		power_ratio * 10.0
+		+ yearly_variation
+	)
+
+	war_score += score_change
 
 	war_score = clamp(
 		war_score,
@@ -473,23 +495,216 @@ func simulate_war_year(
 		100.0
 	)
 
-	if war_years >= 5:
-		if war_score >= 40.0:
-			return end_war(
-				current_year,
-				"victory_a"
+	# -------------------------------------------------
+	# VICTOIRE DU CAMP A
+	# -------------------------------------------------
+
+	if war_score >= 100.0:
+		last_war_winner = civilization_a_id
+		at_war = false
+
+		war_ended_year = current_year_value
+
+		revenge_a = 0.0
+		revenge_b = 100.0
+
+		relation = min(
+			relation,
+			-20.0
+		)
+
+		trust = min(
+			trust,
+			25.0
+		)
+
+		event_history.append(
+			"Année "
+			+ str(current_year_value)
+			+ " : victoire du camp A."
+		)
+
+		if event_history.size() > 20:
+			event_history.pop_front()
+
+		return (
+			"Victoire de la civilisation #"
+			+ str(civilization_a_id)
+			+ " après "
+			+ str(war_years)
+			+ " ans de guerre."
+		)
+
+	# -------------------------------------------------
+	# VICTOIRE DU CAMP B
+	# -------------------------------------------------
+
+	if war_score <= -100.0:
+		last_war_winner = civilization_b_id
+		at_war = false
+
+		war_ended_year = current_year_value
+
+		revenge_a = 100.0
+		revenge_b = 0.0
+
+		relation = min(
+			relation,
+			-20.0
+		)
+
+		trust = min(
+			trust,
+			25.0
+		)
+
+		event_history.append(
+			"Année "
+			+ str(current_year_value)
+			+ " : victoire du camp B."
+		)
+
+		if event_history.size() > 20:
+			event_history.pop_front()
+
+		return (
+			"Victoire de la civilisation #"
+			+ str(civilization_b_id)
+			+ " après "
+			+ str(war_years)
+			+ " ans de guerre."
+		)
+
+	# -------------------------------------------------
+	# PAIX NÉGOCIÉE
+	# -------------------------------------------------
+
+	if war_years >= 30:
+		var final_war_score: float = war_score
+
+		last_war_winner = -1
+		at_war = false
+
+		war_ended_year = current_year_value
+
+		# Aucun vainqueur clair :
+		# les deux civilisations conservent
+		# une certaine rancune.
+		revenge_a = 25.0
+		revenge_b = 25.0
+
+		relation = min(
+			relation,
+			-10.0
+		)
+
+		trust = min(
+			trust,
+			35.0
+		)
+
+		event_history.append(
+			"Année "
+			+ str(current_year_value)
+			+ " : paix négociée."
+		)
+
+		if event_history.size() > 20:
+			event_history.pop_front()
+
+		if abs(final_war_score) < 20.0:
+			return (
+				"Paix négociée après "
+				+ str(war_years)
+				+ " ans de guerre."
 			)
 
-		if war_score <= -40.0:
-			return end_war(
-				current_year,
-				"victory_b"
+		if final_war_score > 0.0:
+			return (
+				"Paix négociée après "
+				+ str(war_years)
+				+ " ans : avantage militaire du camp A."
 			)
 
-	if war_years >= 10:
-		return end_war(
-			current_year,
-			"peace"
+		return (
+			"Paix négociée après "
+			+ str(war_years)
+			+ " ans : avantage militaire du camp B."
 		)
 
 	return ""
+
+func get_diplomatic_status() -> String:
+	if at_war:
+		return STATUS_HOSTILE
+
+	if alliance:
+		return STATUS_ALLIED
+
+	if relation <= -60.0:
+		return STATUS_HOSTILE
+
+	if relation <= -20.0:
+		return STATUS_TENSE
+
+	if relation < 30.0:
+		return STATUS_NEUTRAL
+
+	if relation < 70.0:
+		return STATUS_FRIENDLY
+
+	return STATUS_FRIENDLY
+
+func can_form_alliance() -> bool:
+	if at_war:
+		return false
+
+	if alliance:
+		return false
+
+	if relation < 70.0:
+		return false
+
+	if trust < 70.0:
+		return false
+
+	return true
+
+
+func can_break_alliance() -> bool:
+	if not alliance:
+		return false
+
+	if at_war:
+		return true
+
+	if relation < 40.0:
+		return true
+
+	if trust < 40.0:
+		return true
+
+	return false
+
+func join_war(current_year_value: int) -> String:
+	if at_war:
+		return ""
+
+	at_war = true
+	war_score = 0.0
+	war_years = 0
+	last_war_winner = -1
+
+	event_history.append(
+		"Année "
+		+ str(current_year_value)
+		+ " : entrée en guerre."
+	)
+
+	if event_history.size() > 20:
+		event_history.pop_front()
+
+	return (
+		"Entrée en guerre en "
+		+ str(current_year_value)
+	)

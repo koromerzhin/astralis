@@ -192,61 +192,46 @@ func simulate_year(
 	planet_habitability: float,
 	planet_population_capacity: int
 ) -> void:
+	var population_capacity: int = max(
+		planet_population_capacity,
+		1
+	)
+
+	var population_ratio: float = (
+		float(population)
+		/ float(population_capacity)
+	)
+
 	var growth_rate: float = 0.0
 
-	# Économie
+	# Croissance naturelle.
+	growth_rate += 0.01
+
+	# Une économie développée améliore les conditions de vie.
 	growth_rate += (
 		economy * 0.00002
 	)
 
-	# Habitabilité
-	growth_rate += (
-		planet_habitability * 0.00001
-	)
-
-	# Technologie
+	# La technologie améliore progressivement
+	# la croissance démographique.
 	growth_rate += (
 		technology * 0.00001
 	)
 
-	# Colonies
-	growth_rate += (
-		colony_planet_ids.size()
-		* 0.0005
-	)
-
-	# Production des colonies
-	growth_rate += (
-		get_total_production()
-		* 0.00001
-	)
-
-	# Bonus lié au niveau économique
-	var stability_bonus: float = (
-		(economy / 100.0)
-		* 0.002
-	)
-
-	growth_rate += stability_bonus
-
-	# Surpopulation
-	var population_ratio: float = (
-		float(population)
-		/ float(
-			max(
-				planet_population_capacity,
-				1
-			)
-		)
-	)
-
+	# Une forte densité réduit la croissance.
 	if population_ratio > 0.8:
-		var overcrowding: float = (
+		growth_rate -= (
 			(population_ratio - 0.8)
-			* 0.05
+			* 0.04
 		)
 
-		growth_rate -= overcrowding
+	# Une population proche de la capacité
+	# ne peut pratiquement plus progresser.
+	if population_ratio >= 1.0:
+		growth_rate = min(
+			growth_rate,
+			0.001
+		)
 
 	growth_rate = clamp(
 		growth_rate,
@@ -254,22 +239,17 @@ func simulate_year(
 		0.04
 	)
 
-	var new_population: float = (
-		float(population)
-		* (1.0 + growth_rate)
-	)
-
 	population = max(
 		1,
-		int(new_population)
+		int(
+			float(population)
+			* (1.0 + growth_rate)
+		)
 	)
 
 	population = min(
 		population,
-		max(
-			planet_population_capacity,
-			1
-		)
+		population_capacity
 	)
 
 	simulate_colonies()
@@ -545,7 +525,7 @@ func get_total_production() -> float:
 	return total
 
 
-func reset_trade_income() -> void:
+func reset_trarelation_datade_income() -> void:
 	trade_income = 0.0
 
 
@@ -599,12 +579,72 @@ func take_over_colony(
 
 func simulate_colonies() -> void:
 	for colony in colonies:
-		if not colony.is_occupied():
+		if colony == null:
 			continue
 
-		if colony.stability >= 70.0:
-			colony.annex()
+		# -------------------------------------------------
+		# ÉVOLUTION DE LA COLONIE
+		# -------------------------------------------------
 
+		colony.simulate_year(
+			economy,
+			technology
+		)
+
+		# -------------------------------------------------
+		# STABILITÉ POLITIQUE
+		# -------------------------------------------------
+
+		colony.simulate_stability(
+			economy,
+			technology
+		)
+
+		# -------------------------------------------------
+		# ÉVOLUTION DU STATUT POLITIQUE
+		# -------------------------------------------------
+
+		colony.update_political_status()
+
+		# -------------------------------------------------
+		# PRODUCTION DE LA COLONIE
+		# -------------------------------------------------
+
+		economy += (
+			colony.production * 0.01
+		)
+
+		# -------------------------------------------------
+		# RECHERCHE TECHNOLOGIQUE
+		# -------------------------------------------------
+
+		technology += (
+			float(colony.population)
+			/ 100000000.0
+		)
+
+		# -------------------------------------------------
+		# BONUS DE STABILITÉ
+		# -------------------------------------------------
+
+		if colony.stability >= 70.0:
+			economy += 0.05
+
+		# -------------------------------------------------
+		# LIMITES
+		# -------------------------------------------------
+
+		economy = clamp(
+			economy,
+			1.0,
+			100.0
+		)
+
+		technology = clamp(
+			technology,
+			1.0,
+			100.0
+		)
 
 func apply_war_effect() -> void:
 	economy -= 2.0
@@ -683,3 +723,6 @@ func _generate_name(
 	)
 
 	return prefix + suffix
+
+func reset_trade_income() -> void:
+	trade_income = 0.0
