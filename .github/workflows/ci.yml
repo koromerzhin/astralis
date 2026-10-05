@@ -20,13 +20,16 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
 
       - name: Setup Godot
         uses: chickensoft-games/setup-godot@v2
         with:
-          version: 4.7
+          version: 4.7.2
           use-dotnet: false
+
+      - name: Check Godot version
+        run: godot --version
 
       - name: Import project
         run: godot --headless --editor --quit
