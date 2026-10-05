@@ -4,6 +4,7 @@ signal star_selected(star: Dictionary)
 
 var stars: Array[Dictionary] = []
 var selected_star_id := -1
+var player: PlayerData
 
 @export var move_speed := 500.0
 @export var zoom_speed := 0.1
@@ -41,8 +42,14 @@ func _process(delta: float) -> void:
 		direction.x += 1
 
 	if direction != Vector2.ZERO:
-		camera.position += direction.normalized() * move_speed * delta
+		camera.position += (
+			direction.normalized()
+			* move_speed
+			* delta
+		)
 
+	if player != null:
+		queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
@@ -96,12 +103,16 @@ func _zoom(factor: float) -> void:
 
 	queue_redraw()
 
-
 func _draw() -> void:
 	var zoom: float = camera.zoom.x
 
 	_draw_galaxy(zoom)
 	_draw_stars(zoom)
+
+	if player != null:
+		_draw_player_system_marker(zoom)
+		_draw_travel_route(zoom)
+		_draw_player_ship(zoom)
 
 func _draw_galaxy(zoom: float) -> void:
 	var visibility := inverse_lerp(
@@ -235,3 +246,157 @@ func _get_star_radius(star_type: String) -> float:
 
 		_:
 			return 2.0
+
+func set_player(player_data: PlayerData) -> void:
+	player = player_data
+	queue_redraw()
+
+func _draw_player_ship(zoom: float) -> void:
+	var position: Vector2 = player.position
+
+	var ship_scale: float = clamp(
+		1.0 / zoom,
+		0.8,
+		3.0
+	)
+
+	var direction := Vector2.RIGHT
+
+	if player.traveling:
+		direction = (
+			player.travel_target_position
+			- player.position
+		).normalized()
+
+		if direction == Vector2.ZERO:
+			direction = Vector2.RIGHT
+
+	var perpendicular := Vector2(
+		-direction.y,
+		direction.x
+	)
+
+	var nose := position + direction * 10.0 * ship_scale
+
+	var rear_left := (
+		position
+		- direction * 7.0 * ship_scale
+		+ perpendicular * 5.0 * ship_scale
+	)
+
+	var rear_right := (
+		position
+		- direction * 7.0 * ship_scale
+		- perpendicular * 5.0 * ship_scale
+	)
+
+	var ship_points := PackedVector2Array([
+		nose,
+		rear_left,
+		rear_right
+	])
+
+	draw_colored_polygon(
+		ship_points,
+		Color(0.8, 0.95, 1.0)
+	)
+
+	draw_polyline(
+		PackedVector2Array([
+			nose,
+			rear_left,
+			rear_right,
+			nose
+		]),
+		Color.WHITE,
+		1.5 * ship_scale
+	)
+
+	if player.traveling:
+		var trail_start := (
+			position
+			- direction * 8.0 * ship_scale
+		)
+
+		var trail_end := (
+			position
+			- direction * 22.0 * ship_scale
+		)
+
+		draw_line(
+			trail_start,
+			trail_end,
+			Color(0.4, 0.8, 1.0, 0.7),
+			2.0 * ship_scale
+		)
+
+func _draw_player_system_marker(zoom: float) -> void:
+	if player.current_system_id < 0:
+		return
+
+	var player_position: Vector2 = (
+		player.current_system_position
+	)
+
+	var pulse := (
+		sin(Time.get_ticks_msec() * 0.004) + 1.0
+	) * 0.5
+
+	var radius := (
+		10.0 + pulse * 3.0
+	) / sqrt(zoom)
+
+	radius = clamp(
+		radius,
+		5.0,
+		20.0
+	)
+
+	draw_circle(
+		player_position,
+		radius,
+		Color(0.3, 0.8, 1.0, 0.18),
+		false,
+		2.0 / sqrt(zoom)
+	)
+
+	draw_circle(
+		player_position,
+		radius * 0.55,
+		Color(0.3, 0.8, 1.0, 0.35),
+		false,
+		1.0 / sqrt(zoom)
+	)
+func _draw_travel_route(zoom: float) -> void:
+	if not player.traveling:
+		return
+
+	var start_position: Vector2 = (
+		player.travel_start_position
+	)
+
+	var target_position: Vector2 = (
+		player.travel_target_position
+	)
+
+	var route_width: float = clamp(
+		2.0 / sqrt(zoom),
+		0.8,
+		3.0
+	)
+
+	draw_dashed_line(
+		start_position,
+		target_position,
+		Color(0.4, 0.8, 1.0, 0.45),
+		route_width,
+		8.0 / sqrt(zoom)
+	)
+
+	draw_circle(
+		target_position,
+		8.0 / sqrt(zoom),
+		Color(0.4, 0.8, 1.0, 0.5),
+		false,
+		route_width
+	)

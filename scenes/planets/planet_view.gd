@@ -40,3 +40,59 @@ func _get_planet_color(planet_type: String) -> Color:
 
 		_:
 			return Color.WHITE
+
+func get_planet_description() -> String:
+	if planet == null:
+		return ""
+
+	var info := planet.type.to_upper() + "\n\n"
+
+	info += "Température : "
+	info += str(snapped(planet.temperature, 0.1))
+	info += " °C\n"
+
+	info += "Gravité : "
+	info += str(snapped(planet.gravity, 0.01))
+	info += " g\n"
+
+	info += "Eau : "
+	info += str(snapped(planet.water, 0.1))
+	info += " %\n"
+
+	info += "Atmosphère : "
+	info += str(snapped(planet.atmosphere, 0.1))
+	info += " %\n"
+
+	info += "Habitabilité : "
+	info += str(snapped(planet.habitability, 0.1))
+	info += " %\n\n"
+
+	info += "Ressources\n"
+
+	info += "Minéraux : "
+	info += str(snapped(planet.minerals, 0.1))
+	info += "\n"
+
+	info += "Énergie : "
+	info += str(snapped(planet.energy, 0.1))
+	info += "\n"
+
+	info += "Ressources biologiques : "
+	info += str(snapped(planet.biological_resources, 0.1))
+	info += "\n"
+
+	info += "\nPopulation : "
+	info += str(planet.population)
+
+	info += "\nCapacité : "
+	info += str(planet.population_capacity)
+
+	if planet.has_life:
+		info += "\n\nVie : "
+		info += planet.life_stage
+
+	if planet.civilization != null:
+		info += "\nCivilisation : "
+		info += planet.civilization.name
+
+	return info

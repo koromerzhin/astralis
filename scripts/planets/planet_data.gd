@@ -25,6 +25,7 @@ var minerals: float
 var energy: float
 var biological_resources: float
 var colony_owner_id: int = -1
+var colony: ColonyData
 
 func initialize(
 	planet_id: int,
@@ -36,6 +37,7 @@ func initialize(
 	star_luminosity: float
 ) -> void:
 	id = planet_id
+	global_id = planet_id
 	seed = planet_seed
 	type = planet_type
 	size = planet_size

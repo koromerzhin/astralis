@@ -4,16 +4,24 @@ signal planet_selected(planet: PlanetData)
 
 var system: Dictionary = {}
 var planets: Array[PlanetData] = []
+@export var move_speed := 300.0
+@export var zoom_speed := 0.1
+@export var min_zoom := 0.4
+@export var max_zoom := 3.0
+
+@onready var camera: Camera2D = $Camera2D
 
 
 func set_system(new_system: Dictionary) -> void:
 	system = new_system
 	planets = system["planets"]
 
+	camera.position = Vector2.ZERO
+	camera.zoom = Vector2.ONE
+
 	_initialize_planets()
 
 	queue_redraw()
-
 
 func _initialize_planets() -> void:
 	for planet in planets:
@@ -65,21 +73,57 @@ func _initialize_moons(planet: PlanetData) -> void:
 
 
 func _process(delta: float) -> void:
+	# Déplacement de la caméra.
+	var direction := Vector2.ZERO
+
+	if Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W):
+		direction.y -= 1.0
+
+	if Input.is_key_pressed(KEY_S):
+		direction.y += 1.0
+
+	if Input.is_key_pressed(KEY_Q) or Input.is_key_pressed(KEY_A):
+		direction.x -= 1.0
+
+	if Input.is_key_pressed(KEY_D):
+		direction.x += 1.0
+
+	if direction != Vector2.ZERO:
+		camera.position += (
+			direction.normalized()
+			* move_speed
+			/ camera.zoom.x
+			* delta
+		)
+
+	# Animation des planètes et des lunes.
 	for planet in planets:
 		var angle: float = planet.get_meta("angle")
 		var orbit_speed: float = planet.get_meta("orbit_speed")
 
 		angle += orbit_speed * delta
 
-		planet.set_meta("angle", angle)
+		planet.set_meta(
+			"angle",
+			angle
+		)
 
-		var moons: Array[Dictionary] = planet.get_meta("moons")
+		var moons: Array[Dictionary] = (
+			planet.get_meta("moons")
+		)
 
 		for moon in moons:
-			moon["angle"] += moon["orbit_speed"] * delta
+			var moon_angle: float = moon["angle"]
+			var moon_orbit_speed: float = moon["orbit_speed"]
+
+			moon_angle += (
+				moon_orbit_speed
+				* delta
+			)
+
+			moon["angle"] = moon_angle
 
 	queue_redraw()
-
 
 func _draw() -> void:
 	# Étoile centrale
@@ -186,14 +230,25 @@ func _input(event: InputEvent) -> void:
 		return
 
 	if event is InputEventMouseButton:
-		if event.pressed:
-			if event.button_index == MOUSE_BUTTON_LEFT:
-				_select_planet_at_position(
-					get_global_mouse_position()
-				)
+		if not event.pressed:
+			return
 
-				get_viewport().set_input_as_handled()
+		if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+			_zoom(1.0 - zoom_speed)
+			get_viewport().set_input_as_handled()
+			return
 
+		if event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+			_zoom(1.0 + zoom_speed)
+			get_viewport().set_input_as_handled()
+			return
+
+		if event.button_index == MOUSE_BUTTON_LEFT:
+			_select_planet_at_position(
+				get_global_mouse_position()
+			)
+
+			get_viewport().set_input_as_handled()
 
 func _select_planet_at_position(mouse_position: Vector2) -> void:
 	var closest_planet: PlanetData = null
@@ -224,3 +279,21 @@ func _select_planet_at_position(mouse_position: Vector2) -> void:
 
 	if closest_distance <= selection_distance:
 		planet_selected.emit(closest_planet)
+		
+func _zoom(factor: float) -> void:
+	var new_zoom: float = (
+		camera.zoom.x * factor
+	)
+
+	new_zoom = clamp(
+		new_zoom,
+		min_zoom,
+		max_zoom
+	)
+
+	camera.zoom = Vector2(
+		new_zoom,
+		new_zoom
+	)
+
+	queue_redraw()

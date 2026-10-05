@@ -28,6 +28,8 @@ var trade_income: float = 0.0
 var colony_income: float = 0.0
 var expansion_budget: float = 0.0
 var known_civilization_system_ids: Dictionary = {}
+var trade_network_strength: float = 0.0
+
 
 func initialize(
 	civilization_id: int,
@@ -215,7 +217,14 @@ func simulate_year(
 	# Croissance naturelle.
 	growth_rate += 0.01
 
-	# Une économie développée améliore les conditions de vie.
+	# L'habitabilité influence directement
+	# les conditions de croissance.
+	growth_rate += (
+		planet_habitability * 0.0002
+	)
+
+	# Une économie développée améliore
+	# les conditions de vie.
 	growth_rate += (
 		economy * 0.00002
 	)
@@ -259,9 +268,6 @@ func simulate_year(
 		population,
 		population_capacity
 	)
-
-	simulate_colonies()
-
 
 func simulate_economy_and_technology(
 	planet_habitability: float,
@@ -1316,9 +1322,16 @@ func knows_civilization_system(
 func simulate_colony_economy() -> void:
 	colony_income = 0.0
 
+	var total_colony_population: int = 0
+	var stable_colonies: int = 0
+
 	for colony in colonies:
 		if colony == null:
 			continue
+
+		total_colony_population += (
+			colony.population
+		)
 
 		var colony_income_value: float = (
 			colony.production
@@ -1330,12 +1343,32 @@ func simulate_colony_economy() -> void:
 		elif colony.political_status == ColonyData.STATUS_ANNEXED:
 			colony_income_value *= 0.75
 
-		colony_income += colony_income_value
+		var stability_factor: float = clamp(
+			colony.stability / 100.0,
+			0.25,
+			1.0
+		)
+
+		colony_income_value *= (
+			0.50
+			+ stability_factor * 0.50
+		)
+
+		colony_income += (
+			colony_income_value
+		)
+
+		if colony.stability >= 70.0:
+			stable_colonies += 1
 
 	colony_income = max(
 		colony_income,
 		0.0
 	)
+
+	# -------------------------------------------------
+	# ECONOMIE
+	# -------------------------------------------------
 
 	expansion_budget = (
 		colony_income
@@ -1345,6 +1378,19 @@ func simulate_colony_economy() -> void:
 	expansion_budget += (
 		trade_income
 		* 0.05
+	)
+
+	# Une population coloniale importante augmente
+	# progressivement la capacité économique.
+	var population_economic_bonus: float = min(
+		float(total_colony_population)
+		/ 100000000.0,
+		10.0
+	)
+
+	expansion_budget += (
+		population_economic_bonus
+		* 0.25
 	)
 
 	expansion_budget = clamp(
@@ -1363,8 +1409,51 @@ func simulate_colony_economy() -> void:
 		* 0.005
 	)
 
+	economy += (
+		population_economic_bonus
+		* 0.05
+	)
+
+	# -------------------------------------------------
+	# TECHNOLOGIE
+	# -------------------------------------------------
+
+	if total_colony_population > 0:
+		var research_population_bonus: float = min(
+			float(total_colony_population)
+			/ 200000000.0,
+			5.0
+		)
+
+		technology += (
+			research_population_bonus
+			* science
+			* 0.0001
+		)
+
+	# -------------------------------------------------
+	# STABILITE IMPACTANT LA CIVILISATION
+	# -------------------------------------------------
+
+	if not colonies.is_empty():
+		var stability_ratio: float = (
+			float(stable_colonies)
+			/ float(colonies.size())
+		)
+
+		if stability_ratio >= 0.75:
+			economy += 0.05
+		elif stability_ratio < 0.25:
+			economy -= 0.05
+
 	economy = clamp(
 		economy,
+		1.0,
+		100.0
+	)
+
+	technology = clamp(
+		technology,
 		1.0,
 		100.0
 	)
@@ -1448,3 +1537,307 @@ func simulate_strategic_development() -> void:
 		0.0,
 		100.0
 	)
+
+func get_trade_attractiveness(
+	other_civilization: CivilizationData
+) -> float:
+	if other_civilization == null:
+		return 0.0
+
+	var attractiveness: float = 0.0
+
+	# Une économie forte génère davantage de biens.
+	attractiveness += (
+		economy * 0.35
+	)
+
+	# Une civilisation technologique produit des biens
+	# plus spécialisés.
+	attractiveness += (
+		technology * 0.20
+	)
+
+	# Le commerce est naturellement favorisé par une
+	# civilisation elle-même tournée vers le commerce.
+	attractiveness += (
+		commerce * 0.30
+	)
+
+	# Les colonies augmentent les capacités commerciales.
+	attractiveness += min(
+		float(colonies.size()) * 2.0,
+		10.0
+	)
+
+	# Les civilisations diplomatiques sont plus faciles
+	# à intégrer dans un réseau commercial.
+	attractiveness += (
+		diplomacy * 0.15
+	)
+
+	return clamp(
+		attractiveness,
+		0.0,
+		100.0
+	)
+
+func get_trade_demand(
+	other_civilization: CivilizationData
+) -> float:
+	if other_civilization == null:
+		return 0.0
+
+	var demand: float = 0.0
+
+	# Une économie faible a davantage besoin de ressources.
+	demand += (
+		100.0 - economy
+	) * 0.30
+
+	# Une civilisation technologique recherche des biens
+	# spécialisés.
+	demand += (
+		technology * 0.20
+	)
+
+	# Une grande population augmente les besoins.
+	var total_population: int = (
+		get_total_population()
+	)
+
+	var population_factor: float = min(
+		float(total_population) / 1000000000.0,
+		20.0
+	)
+
+	demand += (
+		population_factor
+	)
+
+	# Les colonies augmentent les besoins logistiques.
+	demand += min(
+		float(colonies.size()) * 2.0,
+		10.0
+	)
+
+	return clamp(
+		demand,
+		0.0,
+		100.0
+	)
+
+func get_war_cost_aversion(
+	other_civilization: CivilizationData,
+	relation: RelationData
+) -> float:
+	if other_civilization == null:
+		return 0.0
+
+	if relation == null:
+		return 0.0
+
+	var dependence: float = (
+		relation.get_economic_dependence(
+			global_id
+		)
+	)
+
+	var aversion: float = 0.0
+
+	# Une forte dépendance économique rend la guerre
+	# beaucoup plus coûteuse.
+	aversion += (
+		dependence * 0.60
+	)
+
+	# Le commerce est également un facteur direct.
+	aversion += (
+		relation.trade * 0.20
+	)
+
+	# Les civilisations commerciales sont davantage
+	# sensibles à la rupture des échanges.
+	aversion += (
+		commerce * 0.15
+	)
+
+	# Une économie forte peut mieux absorber une rupture.
+	aversion -= (
+		economy * 0.10
+	)
+
+	return clamp(
+		aversion,
+		0.0,
+		100.0
+	)
+
+func wants_to_sanction(
+	other_civilization: CivilizationData,
+	relation: RelationData
+) -> bool:
+	if other_civilization == null:
+		return false
+
+	if relation == null:
+		return false
+
+	if relation.at_war:
+		return false
+
+	if relation.relation > -35.0:
+		return false
+
+	var dependence: float = (
+		relation.get_economic_dependence(
+			global_id
+		)
+	)
+
+	# Une civilisation très dépendante hésite à imposer
+	# des sanctions contre son propre partenaire.
+	if dependence > 70.0:
+		return false
+
+	if aggression < 40.0 \
+	and militarism < 40.0:
+		return false
+
+	var hostility: float = (
+		- relation.relation
+	)
+
+	hostility = clamp(
+		hostility,
+		0.0,
+		100.0
+	)
+
+	var sanction_desire: float = 0.0
+
+	sanction_desire += (
+		hostility * 0.50
+	)
+
+	sanction_desire += (
+		aggression * 0.20
+	)
+
+	sanction_desire += (
+		militarism * 0.15
+	)
+
+	sanction_desire -= (
+		diplomacy * 0.10
+	)
+
+	sanction_desire -= (
+		dependence * 0.30
+	)
+
+	return sanction_desire >= 35.0
+
+func get_trade_resilience() -> float:
+	var resilience: float = 0.0
+
+	resilience += (
+		economy * 0.35
+	)
+
+	resilience += (
+		commerce * 0.30
+	)
+
+	resilience += (
+		diplomacy * 0.15
+	)
+
+	resilience += (
+		technology * 0.10
+	)
+
+	resilience += min(
+		float(colonies.size()) * 2.0,
+		10.0
+	)
+
+	return clamp(
+		resilience,
+		0.0,
+		100.0
+	)
+	
+func get_trade_recovery_rate() -> float:
+	var recovery: float = (
+		get_trade_resilience()
+	)
+
+	if isolationism > 70.0:
+		recovery *= 0.50
+
+	if diplomacy > 70.0:
+		recovery *= 1.20
+
+	return clamp(
+		recovery,
+		0.0,
+		100.0
+	)
+
+func wants_to_support_ally(
+	ally: CivilizationData,
+	enemy: CivilizationData,
+	relation_with_ally: RelationData
+) -> bool:
+	if ally == null:
+		return false
+
+	if enemy == null:
+		return false
+
+	if relation_with_ally == null:
+		return false
+
+	if not relation_with_ally.alliance:
+		return false
+
+	if relation_with_ally.at_war:
+		return false
+
+	var support_desire: float = 0.0
+
+	support_desire += (
+		diplomacy * 0.25
+	)
+
+	support_desire += (
+		militarism * 0.20
+	)
+
+	support_desire += (
+		military_power * 0.20
+	)
+
+	support_desire += (
+		economy * 0.10
+	)
+
+	support_desire += (
+		relation_with_ally.trust * 0.15
+	)
+
+	support_desire += (
+		relation_with_ally.trade * 0.10
+	)
+
+	support_desire -= (
+		isolationism * 0.15
+	)
+
+	if military_power < 20.0:
+		support_desire *= 0.50
+
+	if economy < 20.0:
+		support_desire *= 0.75
+
+	return support_desire >= 45.0

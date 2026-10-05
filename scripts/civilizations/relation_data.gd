@@ -25,6 +25,12 @@ var revenge_b: float = 0.0
 var war_ended_year: int = -1
 var territorial_demands: Dictionary = {}
 var last_demand_year: int = -1
+var economic_dependence_a: float = 0.0
+var economic_dependence_b: float = 0.0
+var sanctions_a: bool = false
+var sanctions_b: bool = false
+var sanctions_level_a: float = 0.0
+var sanctions_level_b: float = 0.0
 
 func initialize(
 	first_civilization_id: int,
@@ -749,3 +755,109 @@ func get_personality_pressure(
 	) * 0.05 * distance_factor
 
 	return pressure
+
+func simulate_economic_dependence(
+	civilization_a: CivilizationData,
+	civilization_b: CivilizationData
+) -> void:
+	if civilization_a == null:
+		return
+
+	if civilization_b == null:
+		return
+
+	if trade <= 0.0:
+		economic_dependence_a = max(
+			economic_dependence_a - 2.0,
+			0.0
+		)
+
+		economic_dependence_b = max(
+			economic_dependence_b - 2.0,
+			0.0
+		)
+
+		return
+
+	var trade_strength: float = clamp(
+		trade / 100.0,
+		0.0,
+		1.0
+	)
+
+	var economy_a: float = max(
+		civilization_a.economy,
+		1.0
+	)
+
+	var economy_b: float = max(
+		civilization_b.economy,
+		1.0
+	)
+
+	var trade_share_a: float = (
+		trade_value
+		/ economy_a
+	)
+
+	var trade_share_b: float = (
+		trade_value
+		/ economy_b
+	)
+
+	trade_share_a = clamp(
+		trade_share_a,
+		0.0,
+		1.0
+	)
+
+	trade_share_b = clamp(
+		trade_share_b,
+		0.0,
+		1.0
+	)
+
+	var target_dependence_a: float = (
+		trade_share_a
+		* trade_strength
+		* 100.0
+	)
+
+	var target_dependence_b: float = (
+		trade_share_b
+		* trade_strength
+		* 100.0
+	)
+
+	economic_dependence_a += (
+		target_dependence_a
+		- economic_dependence_a
+	) * 0.10
+
+	economic_dependence_b += (
+		target_dependence_b
+		- economic_dependence_b
+	) * 0.10
+
+	economic_dependence_a = clamp(
+		economic_dependence_a,
+		0.0,
+		100.0
+	)
+
+	economic_dependence_b = clamp(
+		economic_dependence_b,
+		0.0,
+		100.0
+	)
+
+func get_economic_dependence(
+	civilization_id: int
+) -> float:
+	if civilization_id == civilization_a_id:
+		return economic_dependence_a
+
+	if civilization_id == civilization_b_id:
+		return economic_dependence_b
+
+	return 0.0
