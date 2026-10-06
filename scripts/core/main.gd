@@ -1,26 +1,23 @@
 extends Control
 
-
 const GALAXY_SEED := 827391
 
-
 var galaxy_generator := GalaxyGenerator.new()
-
 var stars: Array[Dictionary] = []
-
 var galaxy_camera_position := Vector2.ZERO
 var galaxy_camera_zoom := Vector2.ONE
-
 var current_star_id: int = -1
 var current_system: Dictionary = {}
 var current_planet: PlanetData
 var simulation_year: int = 0
-
 var player := PlayerData.new()
 var selected_star: Dictionary = {}
 var travel_button: Button
 var interaction_button: Button
 var view_planet_button: Button
+var diplomacy_trade_button: Button
+var diplomacy_alliance_button: Button
+var diplomacy_war_button: Button
 
 @onready var explore_planet_button: Button = (
 	$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ExploreButton
@@ -93,6 +90,57 @@ func _ready() -> void:
 
 	star_info_container.add_child(
 		travel_button
+	)
+	
+		# Bouton de commerce.
+	diplomacy_trade_button = Button.new()
+	diplomacy_trade_button.text = "Proposer un échange"
+	diplomacy_trade_button.visible = false
+	diplomacy_trade_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	diplomacy_trade_button.pressed.connect(
+		_on_diplomacy_trade_button_pressed
+	)
+
+	star_info_container.add_child(
+		diplomacy_trade_button
+	)
+
+	# Bouton d'alliance.
+	diplomacy_alliance_button = Button.new()
+	diplomacy_alliance_button.text = "Proposer une alliance"
+	diplomacy_alliance_button.visible = false
+	diplomacy_alliance_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	diplomacy_alliance_button.pressed.connect(
+		_on_diplomacy_alliance_button_pressed
+	)
+
+	star_info_container.add_child(
+		diplomacy_alliance_button
+	)
+
+	# Bouton de guerre.
+	diplomacy_war_button = Button.new()
+	diplomacy_war_button.text = "Déclarer la guerre"
+	diplomacy_war_button.visible = false
+	diplomacy_war_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	diplomacy_war_button.pressed.connect(
+		_on_diplomacy_war_button_pressed
+	)
+
+	star_info_container.add_child(
+		diplomacy_war_button
 	)
 
 	# Bouton d'interaction.
@@ -264,14 +312,16 @@ func _on_star_selected(star: Dictionary) -> void:
 
 	_show_star_info(info)
 
-	# Le bouton n'est disponible que pour
-	# un autre système.
 	travel_button.visible = (
 		not player.traveling
 		and star_id != player.current_system_id
 	)
 
 	interaction_button.visible = false
+
+	diplomacy_trade_button.visible = false
+	diplomacy_alliance_button.visible = false
+	diplomacy_war_button.visible = false
 
 func _on_planet_selected(planet: PlanetData) -> void:
 	current_planet = planet
@@ -803,6 +853,8 @@ func _on_interaction_button_pressed() -> void:
 	)
 
 	var relation_text := "Inconnue"
+	var relation_value: float = 0.0
+	var trust_value: float = 50.0
 
 	for relation in relations:
 		var other_id: int = (
@@ -815,27 +867,82 @@ func _on_interaction_button_pressed() -> void:
 		if other_id != player.civilization_id:
 			continue
 
-		relation_text = (
-			relation.get_relation_status()
-		)
-
+		relation_text = relation.get_relation_status()
+		relation_value = relation.relation
+		trust_value = relation.trust
 		break
 
-	_show_star_info(
+	var info := (
 		"COMMUNICATION\n\n"
 		+ civilization.name
 		+ "\n\n"
-		+ "La civilisation vous répond."
+		+ "Population : "
+		+ str(civilization.population)
+		+ "\n"
+		+ "Technologie : "
+		+ str(
+			snapped(
+				civilization.technology,
+				0.1
+			)
+		)
+		+ "\n"
+		+ "Économie : "
+		+ str(
+			snapped(
+				civilization.economy,
+				0.1
+			)
+		)
 		+ "\n\n"
 		+ "Relation : "
 		+ relation_text
+		+ "\n"
+		+ "Score : "
+		+ str(
+			snapped(
+				relation_value,
+				0.1
+			)
+		)
+		+ "\n"
+		+ "Confiance : "
+		+ str(
+			snapped(
+				trust_value,
+				0.1
+			)
+		)
 		+ "\n\n"
 		+ "\"Nous avons détecté votre "
 		+ "vaisseau dans notre système.\""
 	)
 
+	$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = info
+
 	interaction_button.text = "Communication établie"
 	interaction_button.disabled = true
+
+	# Les actions diplomatiques deviennent visibles.
+	diplomacy_trade_button.visible = true
+	diplomacy_alliance_button.visible = true
+	diplomacy_war_button.visible = true
+
+	# Le commerce est disponible avec une relation
+	# suffisamment bonne.
+	diplomacy_trade_button.disabled = (
+		relation_value < -20.0
+	)
+
+	# Une alliance nécessite une bonne relation
+	# et une confiance suffisante.
+	diplomacy_alliance_button.disabled = (
+		relation_value < 40.0
+		or trust_value < 50.0
+	)
+
+	# La guerre peut toujours être déclarée.
+	diplomacy_war_button.disabled = false
 
 func _show_star_info(info: String) -> void:
 	var info_label: Label = (
@@ -1287,3 +1394,177 @@ func _on_colonize_planet_button_pressed() -> void:
 
 	colonize_planet_button.text = "Planète colonisée"
 	colonize_planet_button.disabled = true
+
+func _on_diplomacy_trade_button_pressed() -> void:
+	if encountered_civilization == null:
+		return
+
+	var civilization: CivilizationData = (
+		encountered_civilization
+	)
+
+	var relations: Array[RelationData] = (
+		simulation_manager.get_civilization_relations(
+			civilization.global_id
+		)
+	)
+
+	for relation in relations:
+		var other_id: int = (
+			simulation_manager.get_other_civilization_id(
+				relation,
+				civilization.global_id
+			)
+		)
+
+		if other_id != player.civilization_id:
+			continue
+
+		if relation.relation < -20.0:
+			return
+
+		relation.relation += 5.0
+		relation.trust += 3.0
+
+		relation.relation = clamp(
+			relation.relation,
+			-100.0,
+			100.0
+		)
+
+		relation.trust = clamp(
+			relation.trust,
+			0.0,
+			100.0
+		)
+
+		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = (
+			"ÉCHANGE COMMERCIAL\n\n"
+			+ civilization.name
+			+ "\n\n"
+			+ "La civilisation accepte "
+			+ "d'établir des échanges commerciaux."
+			+ "\n\n"
+			+ "Relation améliorée de +5."
+			+ "\n"
+			+ "Confiance améliorée de +3."
+		)
+
+		diplomacy_trade_button.text = (
+			"Échange commercial établi"
+		)
+
+		diplomacy_trade_button.disabled = true
+
+		return
+
+func _on_diplomacy_alliance_button_pressed() -> void:
+	if encountered_civilization == null:
+		return
+
+	var civilization: CivilizationData = (
+		encountered_civilization
+	)
+
+	var relations: Array[RelationData] = (
+		simulation_manager.get_civilization_relations(
+			civilization.global_id
+		)
+	)
+
+	for relation in relations:
+		var other_id: int = (
+			simulation_manager.get_other_civilization_id(
+				relation,
+				civilization.global_id
+			)
+		)
+
+		if other_id != player.civilization_id:
+			continue
+
+		if relation.relation < 40.0:
+			return
+
+		if relation.trust < 50.0:
+			return
+
+		relation.relation += 10.0
+		relation.trust += 10.0
+
+		relation.relation = clamp(
+			relation.relation,
+			-100.0,
+			100.0
+		)
+
+		relation.trust = clamp(
+			relation.trust,
+			0.0,
+			100.0
+		)
+
+		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = (
+			"ALLIANCE\n\n"
+			+ civilization.name
+			+ "\n\n"
+			+ "Une alliance est désormais établie."
+			+ "\n\n"
+			+ "Relation améliorée de +10."
+			+ "\n"
+			+ "Confiance améliorée de +10."
+		)
+
+		diplomacy_alliance_button.text = (
+			"Alliance établie"
+		)
+
+		diplomacy_alliance_button.disabled = true
+
+		return
+
+func _on_diplomacy_war_button_pressed() -> void:
+	if encountered_civilization == null:
+		return
+
+	var civilization: CivilizationData = (
+		encountered_civilization
+	)
+
+	var relations: Array[RelationData] = (
+		simulation_manager.get_civilization_relations(
+			civilization.global_id
+		)
+	)
+
+	for relation in relations:
+		var other_id: int = (
+			simulation_manager.get_other_civilization_id(
+				relation,
+				civilization.global_id
+			)
+		)
+
+		if other_id != player.civilization_id:
+			continue
+
+		relation.relation = -100.0
+		relation.trust = 0.0
+
+		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = (
+			"DÉCLARATION DE GUERRE\n\n"
+			+ civilization.name
+			+ "\n\n"
+			+ "Vous avez déclaré la guerre "
+			+ "à cette civilisation."
+			+ "\n\n"
+			+ "Les relations sont désormais hostiles."
+		)
+
+		diplomacy_war_button.text = (
+			"Guerre déclarée"
+		)
+
+		diplomacy_war_button.disabled = true
+
+		return

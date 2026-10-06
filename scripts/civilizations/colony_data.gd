@@ -352,3 +352,38 @@ func calculate_technology_contribution() -> float:
 	)
 
 	return contribution
+
+func check_revolt() -> bool:
+	if political_status == STATUS_ANNEXED:
+		return false
+
+	if stability >= 20.0:
+		return false
+
+	var revolt_chance: float = (
+		(20.0 - stability) / 20.0
+	)
+
+	var rng := RandomNumberGenerator.new()
+	rng.seed = (
+		seed
+		+ population
+		+ int(development * 100.0)
+	)
+
+	return rng.randf() < revolt_chance
+
+func can_become_independent() -> bool:
+	if political_status != STATUS_OCCUPIED:
+		return false
+
+	if stability < 25.0:
+		return false
+
+	if development < 20.0:
+		return false
+
+	if population < 100:
+		return false
+
+	return true

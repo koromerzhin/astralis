@@ -101,5 +101,3 @@ layout_mode = 2
 
 [node name="SimulationManager" type="Node" parent="." unique_id=756863886]
 script = ExtResource("5_dc040")
-years_per_second = null
-simulation_running = null

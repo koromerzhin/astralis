@@ -8100,6 +8100,33 @@ func _simulate_colonies() -> void:
 		colony.update_political_status()
 
 		# ---------------------------------------------
+		# Révolte
+		# ---------------------------------------------
+
+		if colony.check_revolt():
+			colony.set_occupied()
+
+			colony.production *= 0.5
+
+			colony.population = max(
+				1,
+				int(
+					float(colony.population)
+					* 0.9
+				)
+			)
+
+		# ---------------------------------------------
+		# Indépendance
+		# ---------------------------------------------
+
+		# Si la colonie vient de devenir une
+		# civilisation indépendante, elle ne doit
+		# plus contribuer à l'ancienne civilisation.
+		if planet.colony == null:
+			continue
+
+		# ---------------------------------------------
 		# Contribution économique
 		# ---------------------------------------------
 
@@ -8149,3 +8176,78 @@ func _simulate_colonies() -> void:
 			planet.population = 0
 			planet.colony = null
 			planet.colony_owner_id = -1
+
+func _register_independent_civilization(
+	civilization: CivilizationData,
+	planet: PlanetData
+) -> void:
+	var civilization_id: int = civilization.global_id
+
+	_civilizations[civilization_id] = civilization
+
+	# Système d'origine.
+	var system_id: int = int(
+		_planet_system_ids.get(
+			planet.global_id,
+			-1
+		)
+	)
+
+	_civilization_system_ids[civilization_id] = system_id
+
+	# Position de la civilisation.
+	_civilization_positions[civilization_id] = (
+		_system_positions.get(
+			system_id,
+			Vector2.ZERO
+		)
+	)
+
+	# Structures diplomatiques.
+	_civilization_allies[civilization_id] = []
+
+	# Structures territoriales.
+	_civilization_controlled_system_ids[
+		civilization_id
+	] = {}
+
+	_civilization_territorial_claims[
+		civilization_id
+	] = {}
+
+	# Exploration.
+	_civilization_exploration_frontiers[
+		civilization_id
+	] = {}
+
+	_civilization_exploration_ranges[
+		civilization_id
+	] = 0.0
+
+	# Colonisation.
+	_civilization_next_colonization_year[
+		civilization_id
+	] = (
+		current_year
+		+ COLONIZATION_COOLDOWN
+	)
+
+	# Distances et caches.
+	_civilization_system_closest_distances[
+		civilization_id
+	] = {}
+
+	_civilization_claim_distance_cache[
+		civilization_id
+	] = {}
+
+	_civilization_interaction_ranges[
+		civilization_id
+	] = 0.0
+
+	_civilization_system_influence[
+		civilization_id
+	] = {}
+
+	# Les relations devront être recalculées.
+	_civilization_allies_dirty = true
