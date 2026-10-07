@@ -22,6 +22,7 @@ var age: float
 var home_planet_id: int
 var colony_planet_ids: Array[int] = []
 var explored_system_ids: Array[int] = []
+var system_explored_lookup: Dictionary = {}
 var known_civilization_ids: Array[int] = []
 var colonies: Array[ColonyData] = []
 var trade_income: float = 0.0
@@ -1269,7 +1270,7 @@ func wants_to_explore() -> bool:
 func has_explored_system(
 	system_id: int
 ) -> bool:
-	return explored_system_ids.has(
+	return system_explored_lookup.has(
 		system_id
 	)
 	
@@ -1287,6 +1288,10 @@ func explore_system(
 	explored_system_ids.append(
 		system_id
 	)
+
+	system_explored_lookup[
+		system_id
+	] = true
 
 func knows_civilization(
 	civilization_id: int
@@ -1969,11 +1974,16 @@ func from_dict(data: Dictionary) -> void:
 		)
 
 	explored_system_ids.clear()
+	system_explored_lookup.clear()
 
 	for value in data["explored_system_ids"]:
 		explored_system_ids.append(
 			int(value)
 		)
+
+		system_explored_lookup[
+			int(value)
+		] = true
 
 	known_civilization_ids.clear()
 

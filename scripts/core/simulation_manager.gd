@@ -1763,27 +1763,7 @@ func _try_dynamic_colonization() -> void:
 	if civilizations.is_empty():
 		return
 
-	var available_planets: Array[PlanetData] = []
-
-	for planet in _colonizable_planets:
-		if planet == null:
-			continue
-
-		if planet.civilization != null:
-			continue
-
-		if planet.colony_owner_id != -1:
-			continue
-
-		if planet.habitability < 30.0:
-			continue
-
-		available_planets.append(
-			planet
-		)
-
-	if available_planets.is_empty():
-		return
+	_build_colonizable_planet_spatial_grid()
 
 	for civilization in civilizations:
 		if civilization == null:
@@ -1815,10 +1795,98 @@ func _try_dynamic_colonization() -> void:
 		if interaction_range <= 0.0:
 			continue
 
-		var candidates: Array[PlanetData] = []
+		var controlled_positions: Array[Vector2] = []
 
-		for planet in available_planets:
+		for controlled_system_value in controlled_systems:
+			var controlled_system_id: int = (
+				int(controlled_system_value)
+			)
+
+			var controlled_position: Vector2 = (
+				_system_positions.get(
+					controlled_system_id,
+					Vector2.INF
+				)
+			)
+
+			if controlled_position != Vector2.INF:
+				controlled_positions.append(
+					controlled_position
+				)
+
+		if controlled_positions.is_empty():
+			continue
+
+		var interaction_range_squared: float = (
+			interaction_range
+			* interaction_range
+		)
+
+		var cell_radius: int = ceili(
+			interaction_range
+			/ PLANET_SPATIAL_CELL_SIZE
+		)
+
+		var candidate_ids: Dictionary = {}
+
+		for controlled_position in controlled_positions:
+			var center_x: int = floori(
+				controlled_position.x
+				/ PLANET_SPATIAL_CELL_SIZE
+			)
+
+			var center_y: int = floori(
+				controlled_position.y
+				/ PLANET_SPATIAL_CELL_SIZE
+			)
+
+			for offset_x in range(
+				-cell_radius,
+				cell_radius + 1
+			):
+				for offset_y in range(
+					-cell_radius,
+					cell_radius + 1
+				):
+					var cell_key: Vector2i = Vector2i(
+						center_x + offset_x,
+						center_y + offset_y
+					)
+
+					var planets_in_cell: Array = (
+						_colonizable_planet_spatial_grid.get(
+							cell_key,
+							[]
+						)
+					)
+
+					for planet_id_value in planets_in_cell:
+						candidate_ids[
+							planet_id_value
+						] = true
+
+		var candidate_infos: Array = []
+
+		for planet_id_value in candidate_ids.keys():
+			var planet_id: int = int(
+				planet_id_value
+			)
+
+			var planet: PlanetData = _planets.get(
+				planet_id,
+				null
+			)
+
 			if planet == null:
+				continue
+
+			if planet.civilization != null:
+				continue
+
+			if planet.colony_owner_id != -1:
+				continue
+
+			if planet.habitability < 30.0:
 				continue
 
 			var planet_system_value = (
@@ -1845,34 +1913,25 @@ func _try_dynamic_colonization() -> void:
 			if target_position == Vector2.INF:
 				continue
 
-			var reachable: bool = false
+			var closest_distance_squared: float = INF
 
-			for controlled_system_value in controlled_systems:
-				var controlled_system_id: int = (
-					int(controlled_system_value)
-				)
-
-				var controlled_position: Vector2 = (
-					_system_positions.get(
-						controlled_system_id,
-						Vector2.INF
-					)
-				)
-
-				if controlled_position == Vector2.INF:
-					continue
-
-				var distance: float = (
-					controlled_position.distance_to(
+			for controlled_position in controlled_positions:
+				var distance_squared: float = (
+					controlled_position.distance_squared_to(
 						target_position
 					)
 				)
 
-				if distance <= interaction_range:
-					reachable = true
-					break
+				if distance_squared < (
+					closest_distance_squared
+				):
+					closest_distance_squared = (
+						distance_squared
+					)
 
-			if not reachable:
+			if closest_distance_squared > (
+				interaction_range_squared
+			):
 				continue
 
 			# Une civilisation ne colonise pas son propre système.
@@ -1885,11 +1944,30 @@ func _try_dynamic_colonization() -> void:
 			if system_owner == civilization:
 				continue
 
-			candidates.append(
-				planet
+			var closest_distance: float = sqrt(
+				closest_distance_squared
 			)
 
-		if candidates.is_empty():
+			var pressure: float = (
+				1.0
+				- closest_distance
+				/ interaction_range
+			)
+
+			pressure = clamp(
+				pressure,
+				0.0,
+				1.0
+			)
+
+			candidate_infos.append(
+				{
+					"planet": planet,
+					"pressure": pressure * 100.0
+				}
+			)
+
+		if candidate_infos.is_empty():
 			continue
 
 		var rng := RandomNumberGenerator.new()
@@ -1903,29 +1981,13 @@ func _try_dynamic_colonization() -> void:
 		var best_score: float = -INF
 		var best_planet: PlanetData = null
 
-		for candidate in candidates:
-			if candidate == null:
-				continue
-
-			var candidate_system_value = (
-				_colonizable_planet_system_ids.get(
-					candidate.global_id,
-					null
-				)
-			)
-
-			if candidate_system_value == null:
-				continue
-
-			var candidate_system_id: int = (
-				int(candidate_system_value)
+		for candidate_info in candidate_infos:
+			var candidate: PlanetData = (
+				candidate_info["planet"]
 			)
 
 			var territorial_pressure: float = (
-				_calculate_territorial_pressure(
-					civilization,
-					candidate_system_id
-				)
+				candidate_info["pressure"]
 			)
 
 			var habitability_score: float = (
@@ -2026,10 +2088,6 @@ func _try_dynamic_colonization() -> void:
 			+ " dans le système #"
 			+ str(target_system_id),
 			[civilization.global_id]
-		)
-
-		available_planets.erase(
-			planet
 		)
 
 		_colonizable_planets.erase(
@@ -3380,7 +3438,7 @@ func _simulate_exploration() -> void:
 				int(system_value)
 			)
 
-			if civilization.explored_system_ids.has(
+			if civilization.has_explored_system(
 				system_id
 			):
 				frontier.erase(system_value)
@@ -3818,74 +3876,137 @@ func _evaluate_territorial_tensions() -> void:
 	if civilizations.size() < 2:
 		return
 
-	for i in civilizations.size():
-		var civilization_a: CivilizationData = (
-			civilizations[i]
-		)
+	var territories: Array = []
 
-		if civilization_a == null:
+	for civilization in civilizations:
+		if civilization == null:
 			continue
 
-		var controlled_a: Array = (
+		var controlled_systems: Array = (
 			_civilization_controlled_system_ids.get(
-				civilization_a.global_id,
+				civilization.global_id,
 				[]
 			)
 		)
 
-		if controlled_a.is_empty():
+		if controlled_systems.is_empty():
 			continue
 
-		for j in range(i + 1, civilizations.size()):
-			var civilization_b: CivilizationData = (
-				civilizations[j]
-			)
+		var range: float = (
+			civilization.get_interaction_range()
+		)
 
-			if civilization_b == null:
-				continue
+		if range <= 0.0:
+			continue
 
-			var controlled_b: Array = (
-				_civilization_controlled_system_ids.get(
-					civilization_b.global_id,
-					[]
+		var positions: Array[Vector2] = []
+		var min_x: float = INF
+		var max_x: float = -INF
+		var min_y: float = INF
+		var max_y: float = -INF
+
+		for system_value in controlled_systems:
+			var position: Vector2 = (
+				_system_positions.get(
+					int(system_value),
+					Vector2.INF
 				)
 			)
 
-			if controlled_b.is_empty():
+			if position == Vector2.INF:
 				continue
+
+			positions.append(
+				position
+			)
+
+			if position.x < min_x:
+				min_x = position.x
+			if position.x > max_x:
+				max_x = position.x
+			if position.y < min_y:
+				min_y = position.y
+			if position.y > max_y:
+				max_y = position.y
+
+		if positions.is_empty():
+			continue
+
+		territories.append(
+			{
+				"civilization": civilization,
+				"positions": positions,
+				"range": range,
+				"min_x": min_x,
+				"max_x": max_x,
+				"min_y": min_y,
+				"max_y": max_y
+			}
+		)
+
+	for i in territories.size():
+		var entry_a: Dictionary = territories[i]
+
+		var civilization_a: CivilizationData = (
+			entry_a["civilization"]
+		)
+
+		var positions_a: Array = (
+			entry_a["positions"]
+		)
+
+		for j in range(i + 1, territories.size()):
+			var entry_b: Dictionary = territories[j]
+
+			var civilization_b: CivilizationData = (
+				entry_b["civilization"]
+			)
+
+			var combined_range: float = (
+				entry_a["range"] + entry_b["range"]
+			)
+
+			if combined_range <= 0.0:
+				continue
+
+			# Élimination rapide par boîtes englobantes :
+			# si les territoires sont trop éloignés, aucune
+			# paire de systèmes ne peut générer de tension.
+			var min_dx: float = max(
+				entry_a["max_x"] - entry_b["min_x"],
+				entry_b["max_x"] - entry_a["min_x"]
+			)
+
+			var min_dy: float = max(
+				entry_a["max_y"] - entry_b["min_y"],
+				entry_b["max_y"] - entry_a["min_y"]
+			)
+
+			if min_dx < 0.0:
+				min_dx = 0.0
+
+			if min_dy < 0.0:
+				min_dy = 0.0
+
+			var combined_range_squared: float = (
+				combined_range * combined_range
+			)
+
+			if (
+				min_dx * min_dx
+				+ min_dy * min_dy
+				> combined_range_squared
+			):
+				continue
+
+			var positions_b: Array = (
+				entry_b["positions"]
+			)
 
 			var closest_distance: float = INF
 
-			for system_a_value in controlled_a:
-				var system_a_id: int = (
-					int(system_a_value)
-				)
-
-				var position_a: Vector2 = (
-					_system_positions.get(
-						system_a_id,
-						Vector2.INF
-					)
-				)
-
-				if position_a == Vector2.INF:
-					continue
-
-				for system_b_value in controlled_b:
-					var system_b_id: int = (
-						int(system_b_value)
-					)
-
-					var position_b: Vector2 = (
-						_system_positions.get(
-							system_b_id,
-							Vector2.INF
-						)
-					)
-
-					if position_b == Vector2.INF:
-						continue
-
+			for position_a in positions_a:
+				for position_b in positions_b:
 					var distance: float = (
 						position_a.distance_to(
 							position_b
@@ -3896,21 +4017,6 @@ func _evaluate_territorial_tensions() -> void:
 						closest_distance = distance
 
 			if closest_distance == INF:
-				continue
-
-			var range_a: float = (
-				civilization_a.get_interaction_range()
-			)
-
-			var range_b: float = (
-				civilization_b.get_interaction_range()
-			)
-
-			var combined_range: float = (
-				range_a + range_b
-			)
-
-			if combined_range <= 0.0:
 				continue
 
 			if closest_distance > combined_range:
@@ -4329,6 +4435,7 @@ func _update_territorial_claims() -> void:
 			closest_distances = {}
 
 			var controlled_lookup: Dictionary = {}
+			var controlled_positions: Array[Vector2] = []
 
 			for controlled_system_value in controlled_systems:
 				var controlled_system_id: int = (
@@ -4339,16 +4446,6 @@ func _update_territorial_claims() -> void:
 					controlled_system_id
 				] = true
 
-			var cell_radius: int = ceili(
-				interaction_range
-				/ SYSTEM_SPATIAL_CELL_SIZE
-			)
-
-			for controlled_system_value in controlled_systems:
-				var controlled_system_id: int = (
-					int(controlled_system_value)
-				)
-
 				var controlled_position: Vector2 = (
 					_system_positions.get(
 						controlled_system_id,
@@ -4356,85 +4453,113 @@ func _update_territorial_claims() -> void:
 					)
 				)
 
-				if controlled_position == Vector2.INF:
-					continue
+				if controlled_position != Vector2.INF:
+					controlled_positions.append(
+						controlled_position
+					)
 
-				var center_x: int = floori(
-					controlled_position.x
+			if controlled_positions.is_empty():
+				closest_distances = {}
+			else:
+				var cell_radius: int = ceili(
+					interaction_range
 					/ SYSTEM_SPATIAL_CELL_SIZE
 				)
 
-				var center_y: int = floori(
-					controlled_position.y
-					/ SYSTEM_SPATIAL_CELL_SIZE
-				)
+				var neighbor_cells: Dictionary = {}
 
-				for offset_x in range(
-					-cell_radius,
-					cell_radius + 1
-				):
-					for offset_y in range(
+				for controlled_position in controlled_positions:
+					var center_x: int = floori(
+						controlled_position.x
+						/ SYSTEM_SPATIAL_CELL_SIZE
+					)
+
+					var center_y: int = floori(
+						controlled_position.y
+						/ SYSTEM_SPATIAL_CELL_SIZE
+					)
+
+					for offset_x in range(
 						-cell_radius,
 						cell_radius + 1
 					):
-						var cell_key: Vector2i = Vector2i(
-							center_x + offset_x,
-							center_y + offset_y
-						)
-
-						var systems_in_cell: Array = (
-							_system_spatial_grid.get(
-								cell_key,
-								[]
-							)
-						)
-
-						for system_value in systems_in_cell:
-							var system_id: int = (
-								int(system_value)
-							)
-
-							if controlled_lookup.has(
-								system_id
-							):
-								continue
-
-							var target_position: Vector2 = (
-								_system_positions.get(
-									system_id,
-									Vector2.INF
+						for offset_y in range(
+							-cell_radius,
+							cell_radius + 1
+						):
+							neighbor_cells[
+								Vector2i(
+									center_x + offset_x,
+									center_y + offset_y
 								)
+							] = true
+
+				for cell_key in neighbor_cells.keys():
+					var systems_in_cell: Array = (
+						_system_spatial_grid.get(
+							cell_key,
+							[]
+						)
+					)
+
+					for system_value in systems_in_cell:
+						var system_id: int = (
+							int(system_value)
+						)
+
+						if controlled_lookup.has(
+							system_id
+						):
+							continue
+
+						var target_position: Vector2 = (
+							_system_positions.get(
+								system_id,
+								Vector2.INF
 							)
+						)
 
-							if target_position == Vector2.INF:
-								continue
+						if target_position == Vector2.INF:
+							continue
 
-							var distance_squared: float = (
+						var distance_squared: float = INF
+
+						for controlled_position in (
+							controlled_positions
+						):
+							var candidate_distance: float = (
 								controlled_position.distance_squared_to(
 									target_position
 								)
 							)
 
-							if distance_squared > (
-								interaction_range_squared
+							if candidate_distance < (
+								distance_squared
 							):
-								continue
-
-							var previous_distance = (
-								closest_distances.get(
-									system_id,
-									INF
+								distance_squared = (
+									candidate_distance
 								)
+
+						if distance_squared > (
+							interaction_range_squared
+						):
+							continue
+
+						var previous_distance = (
+							closest_distances.get(
+								system_id,
+								INF
 							)
+						)
 
-							if distance_squared < (
-								float(
-									previous_distance
-								)
-							):
-								closest_distances[
-									system_id
-								] = distance_squared
+						if distance_squared < (
+							float(
+								previous_distance
+							)
+						):
+							closest_distances[
+								system_id
+							] = distance_squared
 
 			_civilization_claim_distance_cache[
 				civilization_id
@@ -4469,7 +4594,7 @@ func _update_territorial_claims() -> void:
 			1.0 / interaction_range
 		)
 
-		var valid_claims: Dictionary = {}
+		claims.clear()
 
 		for system_value in closest_distances.keys():
 			var system_id: int = (
@@ -4546,18 +4671,9 @@ func _update_territorial_claims() -> void:
 			if claim_strength < 10.0:
 				continue
 
-			valid_claims[
+			claims[
 				system_id
 			] = claim_strength
-
-		claims.clear()
-
-		for system_value in valid_claims.keys():
-			claims[
-				int(system_value)
-			] = valid_claims[
-				system_value
-			]
 
 func _evaluate_territorial_claim_conflicts() -> void:
 	var civilizations: Array[CivilizationData] = (
