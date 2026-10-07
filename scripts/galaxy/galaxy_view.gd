@@ -27,6 +27,9 @@ func set_stars(new_stars: Array[Dictionary]) -> void:
 
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
+
 	var direction := Vector2.ZERO
 
 	if Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W):

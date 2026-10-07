@@ -318,72 +318,33 @@ func simulate_development(
 		100.0
 	)
 
-func calculate_technology_contribution() -> float:
-	var development_factor: float = (
-		development / 100.0
-	)
 
-	var stability_factor: float = (
-		stability / 100.0
-	)
+func to_dict() -> Dictionary:
+	return {
+		"id": id,
+		"planet_id": planet_id,
+		"population": population,
+		"population_capacity": population_capacity,
+		"planet_population_capacity": planet_population_capacity,
+		"development": development,
+		"production": production,
+		"stability": stability,
+		"habitability": habitability,
+		"seed": seed,
+		"political_status": political_status
+	}
 
-	var population_factor: float = 0.0
 
-	if population_capacity > 0:
-		population_factor = clamp(
-			float(population)
-			/ float(population_capacity),
-			0.0,
-			1.0
-		)
+func from_dict(data: Dictionary) -> void:
+	id = data["id"]
+	planet_id = data["planet_id"]
+	population = data["population"]
+	population_capacity = data["population_capacity"]
+	planet_population_capacity = data["planet_population_capacity"]
+	development = data["development"]
+	production = data["production"]
+	stability = data["stability"]
+	habitability = data["habitability"]
+	seed = data["seed"]
+	political_status = data["political_status"]
 
-	var contribution: float = 0.0
-
-	contribution += (
-		development_factor * 0.05
-	)
-
-	contribution += (
-		stability_factor * 0.025
-	)
-
-	contribution += (
-		population_factor * 0.025
-	)
-
-	return contribution
-
-func check_revolt() -> bool:
-	if political_status == STATUS_ANNEXED:
-		return false
-
-	if stability >= 20.0:
-		return false
-
-	var revolt_chance: float = (
-		(20.0 - stability) / 20.0
-	)
-
-	var rng := RandomNumberGenerator.new()
-	rng.seed = (
-		seed
-		+ population
-		+ int(development * 100.0)
-	)
-
-	return rng.randf() < revolt_chance
-
-func can_become_independent() -> bool:
-	if political_status != STATUS_OCCUPIED:
-		return false
-
-	if stability < 25.0:
-		return false
-
-	if development < 20.0:
-		return false
-
-	if population < 100:
-		return false
-
-	return true

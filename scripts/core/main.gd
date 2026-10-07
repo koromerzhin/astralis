@@ -1,6 +1,7 @@
 extends Control
 
 const GALAXY_SEED := 827391
+const SAVE_PATH := "user://astralis_save.dat"
 
 var galaxy_generator := GalaxyGenerator.new()
 var stars: Array[Dictionary] = []
@@ -13,11 +14,14 @@ var simulation_year: int = 0
 var player := PlayerData.new()
 var selected_star: Dictionary = {}
 var travel_button: Button
+var enter_system_button: Button
+var nav_button: Button
 var interaction_button: Button
 var view_planet_button: Button
 var diplomacy_trade_button: Button
 var diplomacy_alliance_button: Button
 var diplomacy_war_button: Button
+var hud: Hud
 
 @onready var explore_planet_button: Button = (
 	$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ExploreButton
@@ -90,6 +94,23 @@ func _ready() -> void:
 
 	star_info_container.add_child(
 		travel_button
+	)
+
+	# Bouton d'entrée dans le système.
+	enter_system_button = Button.new()
+	enter_system_button.text = "Entrer dans ce système"
+	enter_system_button.visible = false
+	enter_system_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	enter_system_button.pressed.connect(
+		_on_enter_system_button_pressed
+	)
+
+	star_info_container.add_child(
+		enter_system_button
 	)
 	
 		# Bouton de commerce.
@@ -251,7 +272,53 @@ func _ready() -> void:
 		colonize_planet_button
 	)
 
+	# Bouton de retour (vues système et planète).
+	nav_button = Button.new()
+	nav_button.text = "Retour galaxie"
+	nav_button.visible = false
+	nav_button.focus_mode = Control.FOCUS_NONE
+	nav_button.custom_minimum_size = Vector2(180.0, 40.0)
+	nav_button.set_anchors_and_offsets_preset(
+		Control.PRESET_TOP_LEFT
+	)
+	nav_button.offset_left = 20.0
+	nav_button.offset_top = 20.0
+	nav_button.offset_right = 200.0
+	nav_button.offset_bottom = 60.0
+
+	nav_button.pressed.connect(
+		_on_nav_button_pressed
+	)
+
+	$UI.add_child(nav_button)
+
 	_initialize_player()
+
+	for button in [
+		travel_button,
+		enter_system_button,
+		nav_button,
+		interaction_button,
+		diplomacy_trade_button,
+		diplomacy_alliance_button,
+		diplomacy_war_button,
+		view_planet_button,
+		explore_planet_button,
+		study_planet_button,
+		exploit_planet_button,
+		colonize_planet_button,
+	]:
+		button.focus_mode = Control.FOCUS_NONE
+
+	hud = Hud.new()
+	hud.setup(simulation_manager, player)
+
+	$UI.add_child(hud)
+
+	hud.log_toggled.connect(_resize_info_panels)
+	hud.save_requested.connect(_on_save_requested)
+	hud.load_requested.connect(_on_load_requested)
+	get_viewport().size_changed.connect(_resize_info_panels)
 
 func _on_star_selected(star: Dictionary) -> void:
 	var star_id: int = int(star["id"])
@@ -317,6 +384,12 @@ func _on_star_selected(star: Dictionary) -> void:
 		and star_id != player.current_system_id
 	)
 
+	enter_system_button.visible = (
+		not player.traveling
+		and star_id == player.current_system_id
+		and $Galaxy.visible
+	)
+
 	interaction_button.visible = false
 
 	diplomacy_trade_button.visible = false
@@ -326,6 +399,21 @@ func _on_star_selected(star: Dictionary) -> void:
 func _on_planet_selected(planet: PlanetData) -> void:
 	current_planet = planet
 
+	_set_info_text(
+		$UI/PlanetInfo,
+		_build_planet_info_text(planet)
+	)
+
+	$UI/PlanetInfo.visible = true
+
+	view_planet_button.visible = (
+		planet.type != "gas_giant"
+	)
+
+
+func _build_planet_info_text(
+	planet: PlanetData
+) -> String:
 	var info := "PLANÈTE #" + str(planet.id) + "\n\n"
 
 	info += "Type : "
@@ -428,17 +516,7 @@ func _on_planet_selected(planet: PlanetData) -> void:
 		info += "\nCapacité : "
 		info += str(planet.population_capacity)
 
-	var info_label: Label = (
-		$UI/PlanetInfo/MarginContainer/VBoxContainer/InfoLabel
-	)
-
-	info_label.text = info
-
-	$UI/PlanetInfo.visible = true
-
-	view_planet_button.visible = (
-		planet.type != "gas_giant"
-	)
+	return info
 
 func _show_system() -> void:
 	$Galaxy.visible = false
@@ -453,6 +531,11 @@ func _show_system() -> void:
 	$UI/StarInfo.visible = false
 	$UI/PlanetInfo.visible = false
 	$UI/PlanetViewInfo.visible = false
+
+	enter_system_button.visible = false
+
+	nav_button.visible = true
+	nav_button.text = "Retour galaxie"
 
 	travel_button.visible = false
 	interaction_button.visible = false
@@ -487,6 +570,10 @@ func _show_galaxy() -> void:
 	$UI/PlanetInfo.visible = false
 	$UI/PlanetViewInfo.visible = false
 
+	enter_system_button.visible = false
+
+	nav_button.visible = false
+
 	current_planet = null
 
 	$Galaxy.queue_redraw()
@@ -516,8 +603,20 @@ func _on_year_changed(year: int) -> void:
 		simulation_year
 	)
 
-	if $Planet.visible and current_planet != null:
-		_on_planet_selected(current_planet)
+	if current_planet == null:
+		return
+
+	if $Planet.visible:
+		_set_info_text(
+			$UI/PlanetViewInfo,
+			_build_planet_view_text(current_planet)
+		)
+
+	elif $System.visible:
+		_set_info_text(
+			$UI/PlanetInfo,
+			_build_planet_info_text(current_planet)
+		)
 
 
 func _try_dynamic_colonization(
@@ -653,12 +752,39 @@ func _initialize_player() -> void:
 
 	$Galaxy.set_player(player)
 
+	simulation_manager.player_civilization_id = (
+		player.civilization_id
+	)
+
 	print(
 		"Joueur initialisé dans le système #",
 		player.current_system_id,
 		" | Civilisation #",
 		player.civilization_id
 	)
+
+func _on_enter_system_button_pressed() -> void:
+	if player.traveling:
+		return
+
+	current_star_id = player.current_system_id
+
+	current_system = simulation_manager.get_system(
+		player.current_system_id
+	)
+
+	selected_star = {}
+
+	_show_system()
+
+
+func _on_nav_button_pressed() -> void:
+	if $Planet.visible:
+		_show_system()
+
+	elif $System.visible:
+		_show_galaxy()
+
 
 func _on_travel_button_pressed() -> void:
 	if player.traveling:
@@ -700,10 +826,14 @@ func _on_travel_button_pressed() -> void:
 	)
 
 	travel_button.visible = false
+	enter_system_button.visible = false
 
-	$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text += (
-		"\n\nVoyage en cours..."
+	var travel_info: String = (
+		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text
+		+ "\n\nVoyage en cours..."
 	)
+
+	_set_info_text($UI/StarInfo, travel_info)
 
 	print(
 		"Voyage vers le système #",
@@ -759,6 +889,13 @@ func _on_player_arrived() -> void:
 		"Arrivée dans le système #",
 		arrived_system_id
 	)
+
+	if hud != null:
+		hud.add_event(
+			"Arrivée dans le système #"
+			+ str(arrived_system_id),
+			true
+		)
 
 	_show_system()
 
@@ -918,7 +1055,7 @@ func _on_interaction_button_pressed() -> void:
 		+ "vaisseau dans notre système.\""
 	)
 
-	$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = info
+	_set_info_text($UI/StarInfo, info)
 
 	interaction_button.text = "Communication établie"
 	interaction_button.disabled = true
@@ -945,50 +1082,93 @@ func _on_interaction_button_pressed() -> void:
 	diplomacy_war_button.disabled = false
 
 func _show_star_info(info: String) -> void:
+	_set_info_text($UI/StarInfo, info)
+
+	$UI/StarInfo.visible = true
+
+
+func _set_info_text(panel: Panel, text: String) -> void:
 	var info_label: Label = (
-		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel
+		panel.get_node(
+			"MarginContainer/VBoxContainer/InfoLabel"
+		)
 	)
 
-	info_label.text = info
+	info_label.text = text
 
-	$UI/StarInfo.visible = true
+	_queue_info_resize(panel)
 
-func _show_planet() -> void:
-	$Galaxy.visible = false
-	$Galaxy/Camera2D.enabled = false
 
-	$System.visible = false
-	$System/Camera2D.enabled = false
+var _pending_info_resizes: Dictionary = {}
 
-	$Planet.visible = true
-	$Planet/Camera2D.enabled = true
 
-	$UI/StarInfo.visible = true
+func _queue_info_resize(panel: Panel) -> void:
+	if _pending_info_resizes.has(panel):
+		return
 
-	travel_button.visible = false
-	interaction_button.visible = false
+	_pending_info_resizes[panel] = true
 
-	$Planet.set_planet(current_planet)
+	call_deferred("_resize_info_async", panel)
 
-func _update_star_info_size() -> void:
-	var star_info: Panel = $UI/StarInfo
-	var container: MarginContainer = (
-		$UI/StarInfo/MarginContainer
+
+func _resize_info_async(panel: Panel) -> void:
+	await get_tree().process_frame
+	await get_tree().process_frame
+
+	_pending_info_resizes.erase(panel)
+
+	if not is_instance_valid(panel):
+		return
+
+	if not panel.visible:
+		return
+
+	var vbox: Control = panel.get_node(
+		"MarginContainer/VBoxContainer"
 	)
 
-	var minimum_size: Vector2 = (
-		container.get_combined_minimum_size()
+	var content_height: float = vbox.size.y + 26.0
+
+	var max_height: float = _get_info_panel_max_height(panel)
+
+	panel.size.y = clampf(
+		content_height,
+		120.0,
+		max_height
 	)
 
-	star_info.custom_minimum_size = Vector2(
-		300.0,
-		minimum_size.y
+
+func _resize_info_panels() -> void:
+	for panel: Panel in [
+		$UI/StarInfo,
+		$UI/PlanetInfo,
+		$UI/PlanetViewInfo,
+	]:
+		if panel.visible:
+			_queue_info_resize(panel)
+
+
+func _get_info_panel_max_height(panel: Panel) -> float:
+	if hud == null:
+		return 400.0
+
+	var viewport_height: float = (
+		get_viewport_rect().size.y
 	)
 
-	star_info.size = Vector2(
-		300.0,
-		minimum_size.y
-	)
+	if (
+		panel == $UI/PlanetInfo
+		or panel == $UI/PlanetViewInfo
+	):
+		var available: float = (
+			viewport_height
+			- hud.get_reserved_bottom_height()
+			- 26.0
+		)
+
+		return maxf(120.0, available)
+
+	return maxf(120.0, viewport_height - 88.0 - 26.0)
 
 func _on_view_planet_button_pressed() -> void:
 	if current_planet == null:
@@ -996,6 +1176,9 @@ func _on_view_planet_button_pressed() -> void:
 
 	$UI/PlanetInfo.visible = false
 	$UI/PlanetViewInfo.visible = true
+
+	nav_button.visible = true
+	nav_button.text = "Retour système"
 
 	$Galaxy.visible = false
 	$Galaxy/Camera2D.enabled = false
@@ -1011,12 +1194,36 @@ func _on_view_planet_button_pressed() -> void:
 
 	$Planet.set_planet(current_planet)
 
-	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
+	_set_info_text(
+		$UI/PlanetViewInfo,
+		_build_planet_view_text(current_planet)
 	)
+
+	explore_planet_button.visible = true
+	explore_planet_button.disabled = false
+	explore_planet_button.text = "Explorer la planète"
+
+	study_planet_button.visible = false
+	study_planet_button.disabled = false
+	study_planet_button.text = "Étudier la planète"
+
+	exploit_planet_button.visible = false
+	exploit_planet_button.disabled = false
+	exploit_planet_button.text = "Exploiter les ressources"
 
 	var planet: PlanetData = current_planet
 
+	colonize_planet_button.visible = (
+		planet.type != "gas_giant"
+		and planet.civilization == null
+		and planet.colony == null
+		and planet.colony_owner_id == -1
+	)
+
+
+func _build_planet_view_text(
+	planet: PlanetData
+) -> String:
 	var info: String = (
 		planet.type.to_upper()
 		+ "\n\n"
@@ -1149,26 +1356,7 @@ func _on_view_planet_button_pressed() -> void:
 		info += "\nPopulation : "
 		info += str(planet.population)
 
-	info_label.text = info
-
-	explore_planet_button.visible = true
-	explore_planet_button.disabled = false
-	explore_planet_button.text = "Explorer la planète"
-
-	study_planet_button.visible = false
-	study_planet_button.disabled = false
-	study_planet_button.text = "Étudier la planète"
-
-	exploit_planet_button.visible = false
-	exploit_planet_button.disabled = false
-	exploit_planet_button.text = "Exploiter les ressources"
-
-	colonize_planet_button.visible = (
-		planet.type != "gas_giant"
-		and planet.civilization == null
-		and planet.colony == null
-		and planet.colony_owner_id == -1
-	)
+	return info
 
 func _on_explore_planet_button_pressed() -> void:
 	if current_planet == null:
@@ -1229,7 +1417,7 @@ func _on_explore_planet_button_pressed() -> void:
 		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
 	)
 
-	info_label.text = discovery
+	_set_info_text($UI/PlanetViewInfo, discovery)
 
 	explore_planet_button.text = "Planète explorée"
 	explore_planet_button.disabled = true
@@ -1283,7 +1471,7 @@ func _on_study_planet_button_pressed() -> void:
 		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
 	)
 
-	info_label.text = info
+	_set_info_text($UI/PlanetViewInfo, info)
 
 	study_planet_button.text = "Étude terminée"
 	study_planet_button.disabled = true
@@ -1317,7 +1505,7 @@ func _on_exploit_planet_button_pressed() -> void:
 		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
 	)
 
-	info_label.text = info
+	_set_info_text($UI/PlanetViewInfo, info)
 
 	exploit_planet_button.text = "Ressources identifiées"
 	exploit_planet_button.disabled = true
@@ -1341,14 +1529,13 @@ func _on_colonize_planet_button_pressed() -> void:
 		return
 
 	if planet.habitability < 20.0:
-		var info_label: Label = (
-			$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
-		)
-
-		info_label.text = (
-			"COLONISATION IMPOSSIBLE\n\n"
-			+ "Cette planète est trop hostile "
-			+ "pour établir une colonie."
+		_set_info_text(
+			$UI/PlanetViewInfo,
+			(
+				"COLONISATION IMPOSSIBLE\n\n"
+				+ "Cette planète est trop hostile "
+				+ "pour établir une colonie."
+			)
 		)
 
 		return
@@ -1358,42 +1545,65 @@ func _on_colonize_planet_button_pressed() -> void:
 		int(planet.population_capacity * 0.01)
 	)
 
-	var colony := ColonyData.new()
+	var player_civilization: CivilizationData = (
+		simulation_manager.get_civilization(
+			player.civilization_id
+		)
+	)
 
-	colony.initialize(
-		player.civilization_id,
+	if player_civilization == null:
+		return
+
+	player_civilization.add_colony(
 		planet.global_id,
 		planet
 	)
 
+	var colony: ColonyData = planet.colony
+
+	if colony == null:
+		return
+
 	colony.population = initial_population
 
-	planet.colony = colony
-	planet.colony_owner_id = player.civilization_id
 	planet.population = initial_population
 
-	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
-	)
-
-	info_label.text = (
-		"COLONISATION RÉUSSIE\n\n"
-		+ "Une nouvelle colonie a été établie "
-		+ "sur cette planète."
-		+ "\n\n"
-		+ "Population initiale : "
-		+ str(initial_population)
-		+ "\n"
-		+ "Capacité : "
-		+ str(planet.population_capacity)
-		+ "\n"
-		+ "Habitabilité : "
-		+ str(snapped(planet.habitability, 0.1))
-		+ " %"
+	_set_info_text(
+		$UI/PlanetViewInfo,
+		(
+			"COLONISATION RÉUSSIE\n\n"
+			+ "Une nouvelle colonie a été établie "
+			+ "sur cette planète."
+			+ "\n\n"
+			+ "Population initiale : "
+			+ str(initial_population)
+			+ "\n"
+			+ "Capacité : "
+			+ str(planet.population_capacity)
+			+ "\n"
+			+ "Habitabilité : "
+			+ str(snapped(planet.habitability, 0.1))
+			+ " %"
+		)
 	)
 
 	colonize_planet_button.text = "Planète colonisée"
 	colonize_planet_button.disabled = true
+
+	if hud != null:
+		hud.add_event(
+			"Colonisation de la planète #"
+			+ str(planet.global_id)
+			+ " dans le système #"
+			+ str(player.current_system_id),
+			true
+		)
+
+	simulation_manager.register_planet_control(
+		player.civilization_id,
+		planet.global_id,
+		player.current_system_id
+	)
 
 func _on_diplomacy_trade_button_pressed() -> void:
 	if encountered_civilization == null:
@@ -1438,16 +1648,19 @@ func _on_diplomacy_trade_button_pressed() -> void:
 			100.0
 		)
 
-		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = (
-			"ÉCHANGE COMMERCIAL\n\n"
-			+ civilization.name
-			+ "\n\n"
-			+ "La civilisation accepte "
-			+ "d'établir des échanges commerciaux."
-			+ "\n\n"
-			+ "Relation améliorée de +5."
-			+ "\n"
-			+ "Confiance améliorée de +3."
+		_set_info_text(
+			$UI/StarInfo,
+			(
+				"ÉCHANGE COMMERCIAL\n\n"
+				+ civilization.name
+				+ "\n\n"
+				+ "La civilisation accepte "
+				+ "d'établir des échanges commerciaux."
+				+ "\n\n"
+				+ "Relation améliorée de +5."
+				+ "\n"
+				+ "Confiance améliorée de +3."
+			)
 		)
 
 		diplomacy_trade_button.text = (
@@ -1504,15 +1717,18 @@ func _on_diplomacy_alliance_button_pressed() -> void:
 			100.0
 		)
 
-		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = (
-			"ALLIANCE\n\n"
-			+ civilization.name
-			+ "\n\n"
-			+ "Une alliance est désormais établie."
-			+ "\n\n"
-			+ "Relation améliorée de +10."
-			+ "\n"
-			+ "Confiance améliorée de +10."
+		_set_info_text(
+			$UI/StarInfo,
+			(
+				"ALLIANCE\n\n"
+				+ civilization.name
+				+ "\n\n"
+				+ "Une alliance est désormais établie."
+				+ "\n\n"
+				+ "Relation améliorée de +10."
+				+ "\n"
+				+ "Confiance améliorée de +10."
+			)
 		)
 
 		diplomacy_alliance_button.text = (
@@ -1551,14 +1767,17 @@ func _on_diplomacy_war_button_pressed() -> void:
 		relation.relation = -100.0
 		relation.trust = 0.0
 
-		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text = (
-			"DÉCLARATION DE GUERRE\n\n"
-			+ civilization.name
-			+ "\n\n"
-			+ "Vous avez déclaré la guerre "
-			+ "à cette civilisation."
-			+ "\n\n"
-			+ "Les relations sont désormais hostiles."
+		_set_info_text(
+			$UI/StarInfo,
+			(
+				"DÉCLARATION DE GUERRE\n\n"
+				+ civilization.name
+				+ "\n\n"
+				+ "Vous avez déclaré la guerre "
+				+ "à cette civilisation."
+				+ "\n\n"
+				+ "Les relations sont désormais hostiles."
+			)
 		)
 
 		diplomacy_war_button.text = (
@@ -1568,3 +1787,136 @@ func _on_diplomacy_war_button_pressed() -> void:
 		diplomacy_war_button.disabled = true
 
 		return
+
+
+func _on_save_requested() -> void:
+	if save_game():
+		if hud != null:
+			hud.add_event(
+				"Partie sauvegardée.",
+				true
+			)
+
+
+func _on_load_requested() -> void:
+	if load_game():
+		if hud != null:
+			hud.add_event(
+				"Partie reprise depuis la sauvegarde.",
+				true
+			)
+
+
+func save_game() -> bool:
+	var payload := {
+		"version": 1,
+		"saved_at": Time.get_datetime_string_from_system(),
+		"player": player.to_dict(),
+		"simulation": simulation_manager.save_to_dict()
+	}
+
+	var file := FileAccess.open(
+		SAVE_PATH,
+		FileAccess.WRITE
+	)
+
+	if file == null:
+		push_error(
+			"Impossible d'ouvrir la sauvegarde : "
+			+ SAVE_PATH
+		)
+
+		return false
+
+	file.store_string(
+		var_to_str(payload)
+	)
+
+	file.close()
+
+	if hud != null:
+		hud.refresh()
+
+	return true
+
+
+func load_game() -> bool:
+	if not FileAccess.file_exists(SAVE_PATH):
+		return false
+
+	var file := FileAccess.open(
+		SAVE_PATH,
+		FileAccess.READ
+	)
+
+	if file == null:
+		return false
+
+	var parsed = str_to_var(
+		file.get_as_text()
+	)
+
+	file.close()
+
+	if parsed == null or not parsed is Dictionary:
+		return false
+
+	var simulation_data: Dictionary = parsed["simulation"]
+
+	simulation_manager.load_from_dict(
+		simulation_data
+	)
+
+	player.from_dict(parsed["player"])
+
+	_refresh_after_load()
+
+	if hud != null:
+		hud.refresh()
+
+	return true
+
+
+func _stars_from_simulation() -> Array[Dictionary]:
+	var result: Array[Dictionary] = []
+
+	for system_key in simulation_manager._systems.keys():
+		var system: Dictionary = (
+			simulation_manager._systems[int(system_key)]
+		)
+
+		result.append(
+			{
+				"id": int(system_key),
+				"type": system.get(
+					"star_type",
+					""
+				),
+				"position": system.get(
+					"position",
+					Vector2.ZERO
+				),
+				"system_seed": system.get(
+					"seed",
+					0
+				)
+			}
+		)
+
+	return result
+
+
+func _refresh_after_load() -> void:
+	current_star_id = -1
+	current_system = {}
+	current_planet = null
+	selected_star = {}
+	encountered_civilization = null
+	simulation_year = simulation_manager.current_year
+
+	stars = _stars_from_simulation()
+
+	$Galaxy.set_stars(stars)
+	$Galaxy.queue_redraw()
+
+	_show_galaxy()

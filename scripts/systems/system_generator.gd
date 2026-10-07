@@ -40,6 +40,10 @@ func generate(
 				+ planet.civilization.id
 			)
 
+			planet.civilization.home_planet_id = (
+				planet.global_id
+			)
+
 		planets.append(planet)
 
 	_generate_colonies(

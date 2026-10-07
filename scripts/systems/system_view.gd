@@ -73,6 +73,9 @@ func _initialize_moons(planet: PlanetData) -> void:
 
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
+
 	# Déplacement de la caméra.
 	var direction := Vector2.ZERO
 
@@ -225,7 +228,7 @@ func _get_planet_color(planet_type: String) -> Color:
 			return Color.WHITE
 
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
 

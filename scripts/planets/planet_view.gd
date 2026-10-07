@@ -133,6 +133,9 @@ func _get_planet_color(planet_type: String) -> Color:
 			return Color.WHITE
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
+
 	var direction := Vector2.ZERO
 
 	if Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W):
@@ -197,7 +200,7 @@ func _zoom(factor: float) -> void:
 
 	queue_redraw()
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
 

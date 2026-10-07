@@ -240,10 +240,16 @@ func _generate_civilization() -> void:
 		biological_resources,
 		habitability
 	)
-	population = civilization.population
-	population = min(
-		population,
-		population_capacity
+	# La civilisation démarre en dessous de la capacité
+	# pour laisser la population croître.
+	population = int(
+		float(population_capacity)
+		* rng.randf_range(0.35, 0.75)
+	)
+
+	population = max(
+		1000,
+		population
 	)
 
 	civilization.population = population
@@ -358,3 +364,70 @@ func _generate_population_capacity() -> void:
 		1000,
 		int(capacity)
 	)
+
+
+func to_dict() -> Dictionary:
+	return {
+		"id": id,
+		"global_id": global_id,
+		"seed": seed,
+		"type": type,
+		"size": size,
+		"orbit_distance": orbit_distance,
+		"moon_count": moon_count,
+		"temperature": temperature,
+		"gravity": gravity,
+		"water": water,
+		"atmosphere": atmosphere,
+		"in_habitable_zone": in_habitable_zone,
+		"habitability": habitability,
+		"population": population,
+		"population_capacity": population_capacity,
+		"has_life": has_life,
+		"life_level": life_level,
+		"life_stage": life_stage,
+		"minerals": minerals,
+		"energy": energy,
+		"biological_resources": biological_resources,
+		"colony_owner_id": colony_owner_id,
+		"civilization_id": (
+			civilization.global_id
+			if civilization != null
+			else -1
+		),
+		"colony": (
+			colony.to_dict()
+			if (
+				colony != null
+				and colony_owner_id >= 0
+			)
+			else null
+		)
+	}
+
+
+func from_dict(data: Dictionary) -> void:
+	id = data["id"]
+	global_id = data["global_id"]
+	seed = data["seed"]
+	type = data["type"]
+	size = data["size"]
+	orbit_distance = data["orbit_distance"]
+	moon_count = data["moon_count"]
+	temperature = data["temperature"]
+	gravity = data["gravity"]
+	water = data["water"]
+	atmosphere = data["atmosphere"]
+	in_habitable_zone = data["in_habitable_zone"]
+	habitability = data["habitability"]
+	population = data["population"]
+	population_capacity = data["population_capacity"]
+	has_life = data["has_life"]
+	life_level = data["life_level"]
+	life_stage = data["life_stage"]
+	minerals = data["minerals"]
+	energy = data["energy"]
+	biological_resources = data["biological_resources"]
+	colony_owner_id = data["colony_owner_id"]
+	civilization = null
+	colony = null

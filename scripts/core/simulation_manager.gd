@@ -3,6 +3,7 @@ extends Node
 
 
 signal year_changed(year: int)
+signal event_logged(event_text: String, involves_player: bool)
 
 const CIVILIZATION_SPATIAL_CELL_SIZE := 400.0
 const RELATION_DISCOVERY_INTERVAL := 10
@@ -15,6 +16,7 @@ const SYSTEM_SPATIAL_CELL_SIZE := 400.0
 
 
 var current_year: int = 0
+var player_civilization_id: int = -1
 var _year_accumulator: float = 0.0
 var _next_civilization_id: int = 0
 var _next_civilization_global_id: int = 0
@@ -461,9 +463,11 @@ func _simulate_system(
 		)
 
 		civilization.simulate_year(
-			planet.population_capacity,
-			planet.habitability
+			planet.habitability,
+			planet.population_capacity
 		)
+
+		planet.population = civilization.population
 
 		civilization.simulate_economy_and_technology(
 			planet.habitability,
@@ -496,10 +500,6 @@ func _simulate_system(
 
 			colony_planet.population = (
 				colony.population
-			)
-
-			colony_planet.population_capacity = (
-				colony.population_capacity
 			)
 
 # =====================================================
@@ -807,9 +807,12 @@ func _simulate_all_relations() -> void:
 			)
 
 			if not war_result.is_empty():
-				print(
-					"[Guerre] ",
-					war_result
+				_log_event(
+					"[Guerre] " + war_result,
+					[
+						civilization_a.global_id,
+						civilization_b.global_id,
+					]
 				)
 
 				if relation.last_war_winner == (
@@ -1001,11 +1004,15 @@ func _try_start_war(
 	)
 
 	if message != "":
-		print(
-			"[Guerre] ",
-			civilization_a.name,
-			" déclare la guerre à ",
-			civilization_b.name
+		_log_event(
+			"[Guerre] "
+			+ civilization_a.name
+			+ " déclare la guerre à "
+			+ civilization_b.name,
+			[
+				civilization_a.global_id,
+				civilization_b.global_id,
+			]
 		)
 
 
@@ -1064,11 +1071,15 @@ func _try_revenge_war(
 	)
 
 	if message != "":
-		print(
-			"[Revanche] ",
-			civilization_a.name,
-			" déclenche une guerre de revanche contre ",
-			civilization_b.name
+		_log_event(
+			"[Revanche] "
+			+ civilization_a.name
+			+ " déclenche une guerre de revanche contre "
+			+ civilization_b.name,
+			[
+				civilization_a.global_id,
+				civilization_b.global_id,
+			]
 		)
 
 
@@ -1442,12 +1453,16 @@ func _update_alliances() -> void:
 			relation.alliance = true
 			_civilization_allies_dirty = true
 
-			print(
-				"[Alliance] ",
-				civilization_a.name,
-				" et ",
-				civilization_b.name,
-				" deviennent alliés."
+			_log_event(
+				"[Alliance] "
+				+ civilization_a.name
+				+ " et "
+				+ civilization_b.name
+				+ " deviennent alliés.",
+				[
+					civilization_a.global_id,
+					civilization_b.global_id,
+				]
 			)
 
 		else:
@@ -1467,12 +1482,16 @@ func _update_alliances() -> void:
 				relation.alliance = false
 				_civilization_allies_dirty = true
 
-				print(
-					"[Alliance] ",
-					civilization_a.name,
-					" et ",
-					civilization_b.name,
-					" rompent leur alliance."
+				_log_event(
+					"[Alliance] "
+					+ civilization_a.name
+					+ " et "
+					+ civilization_b.name
+					+ " rompent leur alliance.",
+					[
+						civilization_a.global_id,
+						civilization_b.global_id,
+					]
 				)
 
 				continue
@@ -1481,12 +1500,16 @@ func _update_alliances() -> void:
 				relation.alliance = false
 				_civilization_allies_dirty = true
 
-				print(
-					"[Alliance] ",
-					civilization_a.name,
-					" et ",
-					civilization_b.name,
-					" rompent leur alliance."
+				_log_event(
+					"[Alliance] "
+					+ civilization_a.name
+					+ " et "
+					+ civilization_b.name
+					+ " rompent leur alliance.",
+					[
+						civilization_a.global_id,
+						civilization_b.global_id,
+					]
 				)
 
 # =====================================================
@@ -1691,6 +1714,40 @@ func _try_conquer_colony(
 # COLONISATION
 # =====================================================
 
+func register_planet_control(
+	civilization_id: int,
+	planet_id: int,
+	system_id: int
+) -> void:
+	_colonizable_planets.erase(
+		_planets.get(planet_id, null)
+	)
+
+	_colonizable_planet_system_ids.erase(
+		planet_id
+	)
+
+	if not _civilization_controlled_system_ids.has(
+		civilization_id
+	):
+		_civilization_controlled_system_ids[
+			civilization_id
+		] = []
+
+	var controlled: Array = (
+		_civilization_controlled_system_ids[
+			civilization_id
+		]
+	)
+
+	if not controlled.has(
+		system_id
+	):
+		controlled.append(
+			system_id
+		)
+
+
 func _try_dynamic_colonization() -> void:
 	var civilizations: Array[CivilizationData] = (
 		_get_all_civilizations()
@@ -1892,9 +1949,6 @@ func _try_dynamic_colonization() -> void:
 		if planet == null:
 			continue
 
-		if planet == null:
-			continue
-
 		var system_id_value = (
 			_colonizable_planet_system_ids.get(
 				planet.global_id,
@@ -1957,13 +2011,14 @@ func _try_dynamic_colonization() -> void:
 				target_system_id
 			)
 
-		print(
-			"[Colonisation] ",
-			civilization.name,
-			" colonise la planète #",
-			planet.global_id,
-			" dans le système #",
-			target_system_id
+		_log_event(
+			"[Colonisation] "
+			+ civilization.name
+			+ " colonise la planète #"
+			+ str(planet.global_id)
+			+ " dans le système #"
+			+ str(target_system_id),
+			[civilization.global_id]
 		)
 
 		available_planets.erase(
@@ -1979,7 +2034,7 @@ func _try_dynamic_colonization() -> void:
 		)
 
 		# Une seule colonisation par civilisation et par année.
-		break
+		continue
 
 # =====================================================
 # RÉBELLIONS
@@ -2007,10 +2062,10 @@ func _simulate_colony_rebellions() -> void:
 			if rebellion_chance <= 0.0:
 				continue
 
-			if colony.stability < 20.0:
+			if colony.stability < 10.0:
 				rebellion_chance = 1.0
 			else:
-				rebellion_chance *= 0.002
+				rebellion_chance *= 0.00008
 
 			var rng := RandomNumberGenerator.new()
 			rng.seed = (
@@ -2095,6 +2150,12 @@ func _simulate_colony_rebellions() -> void:
 					Vector2.ZERO
 				)
 
+				# La nouvelle civilisation reste active
+				# et peut étendre sa sphère d'influence.
+				_civilization_controlled_system_ids[
+					new_civilization.global_id
+				] = [system_id]
+
 			civilization.remove_colony(
 				colony.planet_id
 			)
@@ -2104,6 +2165,7 @@ func _simulate_colony_rebellions() -> void:
 			)
 
 			target_planet.colony_owner_id = -1
+			target_planet.colony = null
 
 			target_planet.population = (
 				new_civilization.population
@@ -2202,6 +2264,7 @@ func _trigger_colony_rebellion(
 	)
 
 	target_planet.colony_owner_id = -1
+	target_planet.colony = null
 
 	target_planet.population = (
 		rebel_civilization.population
@@ -2224,11 +2287,15 @@ func _trigger_colony_rebellion(
 		relation.relation = -90.0
 		relation.trust = 5.0
 
-	print(
-		"[Rébellion] ",
-		rebel_civilization.name,
-		" devient indépendante sur la planète #",
-		target_planet.global_id
+	_log_event(
+		"[Rébellion] "
+		+ rebel_civilization.name
+		+ " devient indépendante sur la planète #"
+		+ str(target_planet.global_id),
+		[
+			rebel_civilization.global_id,
+			former_civilization.global_id,
+		]
 	)
 
 
@@ -2461,6 +2528,59 @@ func get_civilization_relations(
 			)
 
 	return relations
+
+func get_other_civilization_id(
+	relation: RelationData,
+	civilization_id: int
+) -> int:
+	if relation == null:
+		return -1
+
+	if relation.civilization_a_id == civilization_id:
+		return relation.civilization_b_id
+
+	if relation.civilization_b_id == civilization_id:
+		return relation.civilization_a_id
+
+	return -1
+
+
+func get_controlled_system_count(
+	civilization_id: int
+) -> int:
+	if not _civilization_controlled_system_ids.has(
+		civilization_id
+	):
+		return 0
+
+	var controlled = _civilization_controlled_system_ids[
+		civilization_id
+	]
+
+	if controlled == null:
+		return 0
+
+	return controlled.size()
+
+
+func _involves_player(civilization_ids: Array) -> bool:
+	if player_civilization_id == -1:
+		return false
+
+	return civilization_ids.has(player_civilization_id)
+
+
+func _log_event(
+	event_text: String,
+	civilization_ids: Array = []
+) -> void:
+	var involves_player: bool = _involves_player(
+		civilization_ids
+	)
+
+	print(event_text)
+
+	event_logged.emit(event_text, involves_player)
 
 func _find_system_containing_civilization(
 	civilization_id: int
@@ -2740,18 +2860,19 @@ func _capture_colony(
 		target_system_id
 	)
 
-	print(
-		"[Conquête] ",
-		winner.name,
-		" capture la colonie #",
-		planet_id,
-		" dans le système #",
-		target_system_id,
-		" de ",
-		loser.name,
-		" (défense : ",
-		round(target_defense_strength),
-		")"
+	_log_event(
+		"[Conquête] "
+		+ winner.name
+		+ " capture la colonie #"
+		+ str(planet_id)
+		+ " dans le système #"
+		+ str(target_system_id)
+		+ " de "
+		+ loser.name
+		+ " (défense : "
+		+ str(round(target_defense_strength))
+		+ ")",
+		[winner.global_id, loser.global_id]
 	)
 
 func _rebuild_civilization_allies() -> void:
@@ -2992,14 +3113,18 @@ func _evaluate_war_decisions() -> void:
 		if relation.event_history.size() > 20:
 			relation.event_history.pop_front()
 
-		print(
-			"[Guerre] ",
-			civilization_a.name,
-			" déclare la guerre à ",
-			civilization_b.name,
-			" (coût économique : ",
-			war_cost,
-			")"
+		_log_event(
+			"[Guerre] "
+			+ civilization_a.name
+			+ " déclare la guerre à "
+			+ civilization_b.name
+			+ " (coût économique : "
+			+ str(war_cost)
+			+ ")",
+			[
+				civilization_a.global_id,
+				civilization_b.global_id,
+			]
 		)
 
 func _evaluate_trade_decisions() -> void:
@@ -3413,11 +3538,15 @@ func _simulate_exploration() -> void:
 		if relation.event_history.size() > 20:
 			relation.event_history.pop_front()
 
-		print(
-			"[Premier contact] ",
-			civilization.name,
-			" rencontre ",
-			discovered_civilization.name
+		_log_event(
+			"[Premier contact] "
+			+ civilization.name
+			+ " rencontre "
+			+ discovered_civilization.name,
+			[
+				civilization.global_id,
+				discovered_civilization.global_id,
+			]
 		)
 
 func _find_civilization_in_system(
@@ -5050,13 +5179,14 @@ func _transfer_territorial_system(
 			winner.global_id
 		)
 
-	print(
-		"[Territoire] ",
-		winner.name,
-		" prend le contrôle du système #",
-		system_id,
-		" à ",
-		loser.name
+	_log_event(
+		"[Territoire] "
+		+ winner.name
+		+ " prend le contrôle du système #"
+		+ str(system_id)
+		+ " à "
+		+ loser.name,
+		[winner.global_id, loser.global_id]
 	)
 	
 func _process_territorial_demands() -> void:
@@ -5347,394 +5477,6 @@ func _update_claims_after_conquest(
 			0.0,
 			100.0
 		)
-
-func _create_secession(
-	parent_civilization: CivilizationData,
-	colony: ColonyData,
-	system_id: int
-) -> void:
-	if parent_civilization == null:
-		return
-
-	if colony == null:
-		return
-
-	var planet: PlanetData = (
-		_planets.get(
-			colony.planet_id,
-			null
-		)
-	)
-
-	if planet == null:
-		return
-
-	var new_civilization: CivilizationData = (
-		CivilizationData.new()
-	)
-
-	new_civilization.global_id = (
-		_next_civilization_id
-	)
-
-	_next_civilization_id += 1
-
-	new_civilization.name = (
-		parent_civilization.name
-		+ " Séparatistes"
-	)
-
-	new_civilization.seed = (
-		parent_civilization.seed
-		+ colony.planet_id * 31
-		+ current_year * 97
-	)
-
-	new_civilization.economy = (
-		parent_civilization.economy * 0.25
-	)
-
-	new_civilization.technology = (
-		parent_civilization.technology * 0.50
-	)
-
-	new_civilization.military_power = (
-		parent_civilization.military_power * 0.20
-	)
-
-	new_civilization.expansionism = (
-		parent_civilization.expansionism
-	)
-
-	new_civilization.diplomacy = (
-		parent_civilization.diplomacy
-	)
-
-	_civilizations[
-		new_civilization.global_id
-	] = new_civilization
-
-	_initialize_relations_for_new_civilization(
-		new_civilization,
-		parent_civilization
-	)
-
-	parent_civilization.remove_colony(
-		colony.planet_id
-	)
-
-	new_civilization.take_over_colony(
-		colony
-	)
-
-	planet.colony_owner_id = (
-		new_civilization.global_id
-	)
-
-	if not _civilization_controlled_system_ids.has(
-		new_civilization.global_id
-	):
-		_civilization_controlled_system_ids[
-			new_civilization.global_id
-		] = []
-
-	var new_systems: Array = (
-		_civilization_controlled_system_ids[
-			new_civilization.global_id
-		]
-	)
-
-	# La nouvelle civilisation possède une présence
-	# dans le système, mais ne prend pas forcément
-	# le contrôle territorial complet de celui-ci.
-	var system_owners: Array[CivilizationData] = (
-		_get_system_civilization_owners(
-			system_id
-		)
-	)
-
-	var other_owners: Array[CivilizationData] = []
-
-	for owner in system_owners:
-		if owner == null:
-			continue
-
-		if owner == new_civilization:
-			continue
-
-		if not other_owners.has(owner):
-			other_owners.append(owner)
-
-	if other_owners.is_empty():
-		if not new_systems.has(system_id):
-			new_systems.append(system_id)
-	else:
-		# Le système reste disputé.
-		# La nouvelle civilisation obtient une présence
-		# mais pas nécessairement le contrôle complet.
-		if new_systems.has(system_id):
-			new_systems.erase(system_id)
-
-	_civilization_controlled_system_ids[
-		new_civilization.global_id
-	] = new_systems
-
-	var parent_systems: Array = (
-		_civilization_controlled_system_ids.get(
-			parent_civilization.global_id,
-			[]
-		)
-	)
-
-	var parent_still_present: bool = (
-		_civilization_has_presence_in_system(
-			parent_civilization.global_id,
-			system_id
-		)
-	)
-
-	if not parent_still_present:
-		parent_systems.erase(system_id)
-
-	_civilization_controlled_system_ids[
-		parent_civilization.global_id
-	] = parent_systems
-
-	if not _civilization_territorial_claims.has(
-		new_civilization.global_id
-	):
-		_civilization_territorial_claims[
-			new_civilization.global_id
-	] = {}
-
-	_civilization_territorial_claims[
-		new_civilization.global_id
-	][system_id] = 100.0
-
-	print(
-		"[Sécession] ",
-		colony.planet_id,
-		" devient indépendante de ",
-		parent_civilization.name,
-		" : ",
-		new_civilization.name
-	)
-	
-func _evaluate_colony_secessions() -> void:
-	var civilizations: Array[CivilizationData] = (
-		_get_all_civilizations()
-	)
-
-	if civilizations.is_empty():
-		return
-
-	for civilization in civilizations:
-		if civilization == null:
-			continue
-
-		if civilization.colonies.is_empty():
-			continue
-
-		var controlled_systems: Array = (
-			_civilization_controlled_system_ids.get(
-				civilization.global_id,
-				[]
-			)
-		)
-
-		if controlled_systems.size() <= 1:
-			continue
-
-		for colony in civilization.colonies:
-			if colony == null:
-				continue
-
-			var system_value = (
-				_planet_system_ids.get(
-					colony.planet_id,
-					null
-				)
-			)
-
-			if system_value == null:
-				continue
-
-			var system_id: int = int(system_value)
-
-			if not controlled_systems.has(system_id):
-				continue
-
-			var position: Vector2 = (
-				_system_positions.get(
-					system_id,
-					Vector2.INF
-				)
-			)
-
-			if position == Vector2.INF:
-				continue
-
-			var closest_distance: float = INF
-
-			for other_system_value in controlled_systems:
-				var other_system_id: int = (
-					int(other_system_value)
-				)
-
-				if other_system_id == system_id:
-					continue
-
-				var other_position: Vector2 = (
-					_system_positions.get(
-						other_system_id,
-						Vector2.INF
-					)
-				)
-
-				if other_position == Vector2.INF:
-					continue
-
-				var distance: float = (
-					position.distance_to(
-						other_position
-					)
-				)
-
-				if distance < closest_distance:
-					closest_distance = distance
-
-			if closest_distance == INF:
-				continue
-
-			var distance_factor: float = clamp(
-				closest_distance / 500.0,
-				0.0,
-				1.0
-			)
-
-			var stability: float = (
-				float(colony.stability)
-			)
-
-			var instability: float = (
-				100.0 - stability
-			)
-
-			var secession_pressure: float = (
-				instability * 0.5
-			)
-
-			secession_pressure += (
-				distance_factor * 25.0
-			)
-
-			secession_pressure -= (
-				float(civilization.diplomacy) * 0.10
-			)
-
-			secession_pressure = clamp(
-				secession_pressure,
-				0.0,
-				100.0
-			)
-
-			if secession_pressure < 60.0:
-				continue
-
-			var chance: float = (
-				(secession_pressure - 60.0)
-				* 0.002
-			)
-
-			chance = clamp(
-				chance,
-				0.0,
-				0.10
-			)
-
-			var rng := RandomNumberGenerator.new()
-
-			rng.seed = (
-				civilization.global_id * 7919
-				+ colony.planet_id * 104729
-				+ current_year * 313
-			)
-
-			if rng.randf() > chance:
-				continue
-
-			_create_secession(
-				civilization,
-				colony,
-				system_id
-			)
-
-			break
-
-
-func _initialize_relations_for_new_civilization(
-	new_civilization: CivilizationData,
-	parent_civilization: CivilizationData
-) -> void:
-	if new_civilization == null:
-		return
-
-	for other_civilization in _get_all_civilizations():
-		if other_civilization == null:
-			continue
-
-		if other_civilization == new_civilization:
-			continue
-
-		var relation_key: String = (
-			_get_relation_key(
-				new_civilization.global_id,
-				other_civilization.global_id
-			)
-		)
-
-		if relation_key.is_empty():
-			continue
-
-		if _relations.has(relation_key):
-			continue
-
-		var relation: RelationData = (
-			RelationData.new()
-		)
-
-		relation.civilization_a_id = (
-			new_civilization.global_id
-		)
-
-		relation.civilization_b_id = (
-			other_civilization.global_id
-		)
-
-		if (
-			parent_civilization != null
-			and other_civilization.global_id
-			== parent_civilization.global_id
-		):
-			relation.relation = -40.0
-			relation.trust = 10.0
-		else:
-			relation.relation = 0.0
-			relation.trust = 50.0
-
-		relation.relation = clamp(
-			relation.relation,
-			-100.0,
-			100.0
-		)
-
-		relation.trust = clamp(
-			relation.trust,
-			0.0,
-			100.0
-		)
-
-		_relations[relation_key] = relation
 
 func _civilization_has_homeworld_in_system(
 	civilization_id: int,
@@ -6749,13 +6491,17 @@ func _integrate_colony_peacefully(
 		if relation.event_history.size() > 20:
 			relation.event_history.pop_front()
 
-	print(
-		"[Intégration] ",
-		receiving_civilization.name,
-		" intègre pacifiquement la colonie #",
-		planet_id,
-		" de ",
-		losing_civilization.name
+	_log_event(
+		"[Intégration] "
+		+ receiving_civilization.name
+		+ " intègre pacifiquement la colonie #"
+		+ str(planet_id)
+		+ " de "
+		+ losing_civilization.name,
+		[
+			receiving_civilization.global_id,
+			losing_civilization.global_id,
+		]
 	)
 
 func _calculate_integration_pressure(
@@ -8035,148 +7781,6 @@ func _expand_exploration_frontier(
 		civilization_id
 	] = exploration_range
 
-func _simulate_colonies() -> void:
-	for planet_value in _planets.values():
-		if planet_value == null:
-			continue
-
-		var planet: PlanetData = planet_value
-
-		if planet.colony == null:
-			continue
-
-		var colony: ColonyData = planet.colony
-
-		var civilization_value = _civilizations.get(
-			planet.colony_owner_id
-		)
-
-		if civilization_value == null:
-			continue
-
-		var civilization: CivilizationData = (
-			civilization_value
-		)
-
-		# ---------------------------------------------
-		# Population
-		# ---------------------------------------------
-
-		colony.simulate_year(
-			planet.habitability,
-			planet.population_capacity
-		)
-
-		# ---------------------------------------------
-		# Stabilité
-		# ---------------------------------------------
-
-		colony.simulate_stability(
-			civilization.economy,
-			civilization.technology
-		)
-
-		# ---------------------------------------------
-		# Production
-		# ---------------------------------------------
-
-		colony.simulate_production(
-			civilization.economy,
-			civilization.technology
-		)
-
-		# ---------------------------------------------
-		# Développement
-		# ---------------------------------------------
-
-		colony.simulate_development(
-			civilization.technology
-		)
-
-		# ---------------------------------------------
-		# Statut politique
-		# ---------------------------------------------
-
-		colony.update_political_status()
-
-		# ---------------------------------------------
-		# Révolte
-		# ---------------------------------------------
-
-		if colony.check_revolt():
-			colony.set_occupied()
-
-			colony.production *= 0.5
-
-			colony.population = max(
-				1,
-				int(
-					float(colony.population)
-					* 0.9
-				)
-			)
-
-		# ---------------------------------------------
-		# Indépendance
-		# ---------------------------------------------
-
-		# Si la colonie vient de devenir une
-		# civilisation indépendante, elle ne doit
-		# plus contribuer à l'ancienne civilisation.
-		if planet.colony == null:
-			continue
-
-		# ---------------------------------------------
-		# Contribution économique
-		# ---------------------------------------------
-
-		var economic_contribution: float = (
-			colony.production * 0.01
-		)
-
-		civilization.economy += (
-			economic_contribution
-		)
-
-		civilization.economy = clamp(
-			civilization.economy,
-			0.0,
-			100.0
-		)
-
-		# ---------------------------------------------
-		# Contribution technologique
-		# ---------------------------------------------
-
-		var technology_contribution: float = (
-			colony.calculate_technology_contribution()
-		)
-
-		civilization.technology += (
-			technology_contribution
-		)
-
-		civilization.technology = clamp(
-			civilization.technology,
-			0.0,
-			100.0
-		)
-
-		# ---------------------------------------------
-		# Synchronisation planète
-		# ---------------------------------------------
-
-		planet.population = colony.population
-
-		# ---------------------------------------------
-		# Abandon de la colonie
-		# ---------------------------------------------
-
-		if colony.population <= 0:
-			planet.population = 0
-			planet.colony = null
-			planet.colony_owner_id = -1
-
 func _register_independent_civilization(
 	civilization: CivilizationData,
 	planet: PlanetData
@@ -8251,3 +7855,253 @@ func _register_independent_civilization(
 
 	# Les relations devront être recalculées.
 	_civilization_allies_dirty = true
+
+
+func save_to_dict() -> Dictionary:
+	var systems_data: Array = []
+
+	for system_key in _systems.keys():
+		var system_id: int = int(system_key)
+
+		if not _systems.has(system_id):
+			continue
+
+		var system: Dictionary = _systems[system_id]
+
+		var planets_data: Array = []
+
+		for planet in system.get("planets", []):
+			if planet == null:
+				continue
+
+			planets_data.append(
+				planet.to_dict()
+			)
+
+		systems_data.append(
+			{
+				"id": system_id,
+				"seed": system.get(
+					"seed",
+					0
+				),
+				"star_type": system.get(
+					"star_type",
+					""
+				),
+				"star_luminosity": system.get(
+					"star_luminosity",
+					0.0
+				),
+				"position": system.get(
+					"position",
+					Vector2.ZERO
+				),
+				"planets": planets_data
+			}
+		)
+
+	var civilizations_data := {}
+
+	for civ_id in _civilizations.keys():
+		civilizations_data[int(civ_id)] = (
+			_civilizations[int(civ_id)].to_dict()
+		)
+
+	var relations_data := {}
+
+	for key in _relations.keys():
+		relations_data[str(key)] = (
+			_relations[key].to_dict()
+		)
+
+	return {
+		"version": 1,
+		"current_year": current_year,
+		"player_civilization_id": player_civilization_id,
+		"next_civilization_id": _next_civilization_id,
+		"next_civilization_global_id": _next_civilization_global_id,
+		"relation_discovery_year": _relation_discovery_year,
+		"systems": systems_data,
+		"civilizations": civilizations_data,
+		"relations": relations_data,
+		"civilization_system_ids": _civilization_system_ids,
+		"civilization_positions": _civilization_positions,
+		"civilization_controlled_system_ids": _civilization_controlled_system_ids,
+		"civilization_territorial_claims": _civilization_territorial_claims
+	}
+
+
+func load_from_dict(data: Dictionary) -> void:
+	_clear_simulation_state()
+
+	current_year = int(data["current_year"])
+	player_civilization_id = int(data["player_civilization_id"])
+	_next_civilization_id = int(data["next_civilization_id"])
+	_next_civilization_global_id = int(data["next_civilization_global_id"])
+	_relation_discovery_year = int(data["relation_discovery_year"])
+
+	var civilizations_data: Dictionary = (
+		data["civilizations"]
+	)
+
+	for civ_key in civilizations_data.keys():
+		var civilian := CivilizationData.new()
+
+		civilian.from_dict(
+			civilizations_data[civ_key]
+		)
+
+		_civilizations[
+			int(civ_key)
+		] = civilian
+
+	var colonies_by_planet := {}
+
+	for civ in _civilizations.values():
+		for colony in civ.colonies:
+			colonies_by_planet[
+				colony.planet_id
+			] = colony
+
+	var systems_data: Array = data["systems"]
+
+	for system_data in systems_data:
+		var system_id: int = int(
+			system_data["id"]
+		)
+
+		var system := {
+			"id": system_id,
+			"seed": system_data["seed"],
+			"star_type": system_data["star_type"],
+			"star_luminosity": system_data["star_luminosity"],
+			"position": system_data["position"]
+		}
+
+		_system_positions[
+			system_id
+		] = system["position"]
+
+		var planets: Array[PlanetData] = []
+
+		for planet_data in system_data["planets"]:
+			var planet := PlanetData.new()
+
+			planet.from_dict(planet_data)
+
+			planets.append(planet)
+
+			_planets[
+				planet.global_id
+			] = planet
+
+			_planet_system_ids[
+				planet.global_id
+			] = system_id
+
+			var home_civ_id: int = int(
+				planet_data["civilization_id"]
+			)
+
+			if (
+				home_civ_id >= 0
+				and _civilizations.has(home_civ_id)
+			):
+				planet.civilization = (
+					_civilizations[home_civ_id]
+				)
+
+			if colonies_by_planet.has(
+				planet.global_id
+			):
+				planet.colony = (
+					colonies_by_planet[
+						planet.global_id
+					]
+				)
+
+			if (
+				planet.type != "gas_giant"
+				and planet.civilization == null
+				and planet.colony_owner_id == -1
+				and planet.habitability >= 30.0
+			):
+				_colonizable_planets.append(
+					planet
+				)
+
+				_colonizable_planet_system_ids[
+					planet.global_id
+				] = system_id
+
+		system["planets"] = planets
+
+		_system_planets[system_id] = planets
+		_systems[system_id] = system
+
+	for key in data["relations"].keys():
+		var relation := RelationData.new()
+
+		relation.from_dict(
+			data["relations"][key]
+		)
+
+		_relations[str(key)] = relation
+
+	for civ_key in data["civilization_system_ids"].keys():
+		_civilization_system_ids[int(civ_key)] = int(
+			data["civilization_system_ids"][civ_key]
+		)
+
+	for civ_key in data["civilization_positions"].keys():
+		_civilization_positions[int(civ_key)] = (
+			data["civilization_positions"][civ_key]
+		)
+
+	for civ_key in data["civilization_controlled_system_ids"].keys():
+		_civilization_controlled_system_ids[int(civ_key)] = (
+			data["civilization_controlled_system_ids"][civ_key]
+		)
+
+	for civ_key in data["civilization_territorial_claims"].keys():
+		_civilization_territorial_claims[int(civ_key)] = (
+			data["civilization_territorial_claims"][civ_key]
+		)
+
+	_build_civilization_spatial_grid()
+	_build_colonizable_planet_spatial_grid()
+	_rebuild_system_spatial_grid()
+
+	_civilization_allies_dirty = true
+	_rebuild_civilization_allies()
+
+
+func _clear_simulation_state() -> void:
+	_systems.clear()
+	_relations.clear()
+	_civilizations.clear()
+	_civilization_interaction_ranges.clear()
+	_planets.clear()
+	_planet_system_ids.clear()
+	_system_positions.clear()
+	_civilization_system_ids.clear()
+	_system_planets.clear()
+	_colonizable_planets.clear()
+	_colonizable_planet_system_ids.clear()
+	_civilization_positions.clear()
+	_civilization_spatial_grid.clear()
+	_colonizable_planet_spatial_grid.clear()
+	_civilization_next_colonization_year.clear()
+	_civilization_controlled_system_ids.clear()
+	_civilization_territorial_claims.clear()
+	_civilization_allies.clear()
+	_system_spatial_grid.clear()
+	_civilization_exploration_frontiers.clear()
+	_civilization_exploration_ranges.clear()
+	_civilization_system_closest_distances.clear()
+	_civilization_claim_distance_cache.clear()
+	_civilization_system_influence.clear()
+	_contested_systems.clear()
+
+	_year_accumulator = 0.0
