@@ -3,9 +3,6 @@ extends Control
 
 const STATUS_BAR_HEIGHT := 88.0
 signal log_toggled
-signal save_requested
-signal load_requested
-signal menu_requested
 
 const LOG_WIDTH := 470.0
 const LOG_HEIGHT := 210.0
@@ -15,21 +12,14 @@ const MAX_LOG_ENTRIES := 40
 const PANEL_COLOR := Color(0.04, 0.06, 0.1, 0.9)
 const BORDER_COLOR := Color(0.3, 0.55, 0.75, 0.6)
 const ACCENT_COLOR := Color(0.4, 0.75, 1.0)
-const PAUSED_COLOR := Color(1.0, 0.72, 0.3)
-const RUNNING_COLOR := Color(0.5, 0.9, 0.6)
 const PLAYER_EVENT_COLOR := Color(1.0, 0.85, 0.38)
 const OTHER_EVENT_COLOR := Color(0.6, 0.67, 0.76)
 const STATS_COLOR := Color(0.82, 0.87, 0.93)
-const SAVE_PATH := "user://astralis_save.dat"
 
 var simulation_manager: SimulationManager
 var player: PlayerData
 
 var _year_label: Label
-var _pause_button: Button
-var _save_button: Button
-var _load_button: Button
-var _menu_button: Button
 var _identity_label: Label
 var _resources_label: Label
 var _log_panel: Panel
@@ -38,7 +28,6 @@ var _log_text: RichTextLabel
 var _speed_values: Array[float] = []
 var _speed_buttons: Array[Button] = []
 var _entries: Array[Dictionary] = []
-var _last_running: bool = true
 var _log_collapsed: bool = false
 
 
@@ -140,13 +129,6 @@ func _build_status_bar() -> void:
 
 	row.add_child(_year_label)
 
-	_pause_button = Button.new()
-	_pause_button.focus_mode = Control.FOCUS_NONE
-	_pause_button.custom_minimum_size = Vector2(124, 36)
-	_pause_button.pressed.connect(_on_pause_pressed)
-
-	row.add_child(_pause_button)
-
 	var group := ButtonGroup.new()
 
 	for speed in [1.0, 2.0, 4.0]:
@@ -173,40 +155,6 @@ func _build_status_bar() -> void:
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	row.add_child(spacer)
-
-	_menu_button = Button.new()
-	_menu_button.text = "☰ Menu"
-	_menu_button.focus_mode = Control.FOCUS_NONE
-	_menu_button.custom_minimum_size = Vector2(112, 36)
-	_menu_button.pressed.connect(
-		func() -> void:
-			menu_requested.emit()
-	)
-
-	row.add_child(_menu_button)
-
-	_save_button = Button.new()
-	_save_button.text = "🛡 Sauvegarde"
-	_save_button.focus_mode = Control.FOCUS_NONE
-	_save_button.custom_minimum_size = Vector2(112, 36)
-	_save_button.pressed.connect(
-		func() -> void:
-			save_requested.emit()
-	)
-
-	row.add_child(_save_button)
-
-	_load_button = Button.new()
-	_load_button.text = "⏏ Reprendre"
-	_load_button.focus_mode = Control.FOCUS_NONE
-	_load_button.custom_minimum_size = Vector2(112, 36)
-	_load_button.disabled = not _save_exists()
-	_load_button.pressed.connect(
-		func() -> void:
-			load_requested.emit()
-	)
-
-	row.add_child(_load_button)
 
 	var stats := VBoxContainer.new()
 
@@ -375,15 +323,7 @@ func refresh() -> void:
 	)
 
 	_update_stats()
-	_update_pause_button()
 	_update_speed_buttons()
-
-	if _load_button != null:
-		_load_button.disabled = not _save_exists()
-
-
-func _save_exists() -> bool:
-	return FileAccess.file_exists(SAVE_PATH)
 
 
 func _update_stats() -> void:
@@ -437,28 +377,6 @@ func _update_stats() -> void:
 	)
 
 
-func _update_pause_button() -> void:
-	if simulation_manager == null:
-		return
-
-	var running: bool = simulation_manager.simulation_running
-
-	_last_running = running
-
-	if running:
-		_pause_button.text = "▶ En cours"
-		_pause_button.add_theme_color_override(
-			"font_color",
-			RUNNING_COLOR
-		)
-	else:
-		_pause_button.text = "⏸ En pause"
-		_pause_button.add_theme_color_override(
-			"font_color",
-			PAUSED_COLOR
-		)
-
-
 func _update_speed_buttons() -> void:
 	if simulation_manager == null:
 		return
@@ -474,17 +392,6 @@ func _update_speed_buttons() -> void:
 				current_speed
 			)
 		)
-
-
-func _on_pause_pressed() -> void:
-	if simulation_manager == null:
-		return
-
-	simulation_manager.simulation_running = (
-		not simulation_manager.simulation_running
-	)
-
-	_update_pause_button()
 
 
 func _on_speed_pressed(speed: float) -> void:
@@ -558,14 +465,6 @@ func _render_log() -> void:
 		_log_text.add_text("\n")
 
 		_log_text.pop()
-
-
-func _process(_delta: float) -> void:
-	if simulation_manager == null:
-		return
-
-	if simulation_manager.simulation_running != _last_running:
-		_update_pause_button()
 
 
 func _format_int(value: int) -> String:

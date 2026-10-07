@@ -294,6 +294,8 @@ func _ready() -> void:
 
 	$UI.add_child(nav_button)
 
+	_update_nav_button_position()
+
 	_initialize_player()
 
 	for button in [
@@ -318,9 +320,6 @@ func _ready() -> void:
 	$UI.add_child(hud)
 
 	hud.log_toggled.connect(_resize_info_panels)
-	hud.save_requested.connect(_on_save_requested)
-	hud.load_requested.connect(_on_load_requested)
-	hud.menu_requested.connect(_on_hud_menu_requested)
 	get_viewport().size_changed.connect(_resize_info_panels)
 
 	main_menu = MainMenu.new()
@@ -554,6 +553,8 @@ func _show_system() -> void:
 	nav_button.visible = true
 	nav_button.text = "Retour galaxie"
 
+	_update_nav_button_position()
+
 	travel_button.visible = false
 	interaction_button.visible = false
 
@@ -609,11 +610,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			)
 
 		elif event.keycode == KEY_ESCAPE:
-			if $Planet.visible:
-				_show_system()
-
-			elif $System.visible:
-				_show_galaxy()
+			_open_pause_menu()
 
 func _on_year_changed(year: int) -> void:
 	simulation_year = year
@@ -1106,6 +1103,8 @@ func _show_star_info(info: String) -> void:
 
 	$UI/StarInfo.visible = true
 
+	_update_nav_button_position()
+
 
 func _set_info_text(panel: Panel, text: String) -> void:
 	var info_label: Label = (
@@ -1157,6 +1156,25 @@ func _resize_info_async(panel: Panel) -> void:
 		max_height
 	)
 
+	_update_nav_button_position()
+
+
+func _update_nav_button_position() -> void:
+	if nav_button == null:
+		return
+
+	var top := 20.0
+
+	if $UI/StarInfo.visible:
+		top = (
+			$UI/StarInfo.position.y
+			+ $UI/StarInfo.size.y
+			+ 12.0
+		)
+
+	nav_button.offset_top = top
+	nav_button.offset_bottom = top + 40.0
+
 
 func _resize_info_panels() -> void:
 	for panel: Panel in [
@@ -1199,6 +1217,8 @@ func _on_view_planet_button_pressed() -> void:
 
 	nav_button.visible = true
 	nav_button.text = "Retour système"
+
+	_update_nav_button_position()
 
 	$Galaxy.visible = false
 	$Galaxy/Camera2D.enabled = false
@@ -1809,25 +1829,7 @@ func _on_diplomacy_war_button_pressed() -> void:
 		return
 
 
-func _on_save_requested() -> void:
-	if save_game():
-		if hud != null:
-			hud.add_event(
-				"Partie sauvegardée.",
-				true
-			)
-
-
-func _on_load_requested() -> void:
-	if load_game():
-		if hud != null:
-			hud.add_event(
-				"Partie reprise depuis la sauvegarde.",
-				true
-			)
-
-
-func _on_hud_menu_requested() -> void:
+func _open_pause_menu() -> void:
 	_simulation_was_running = (
 		$SimulationManager.simulation_running
 	)
