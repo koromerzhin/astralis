@@ -5,6 +5,7 @@ const STATUS_BAR_HEIGHT := 88.0
 signal log_toggled
 signal save_requested
 signal load_requested
+signal menu_requested
 
 const LOG_WIDTH := 470.0
 const LOG_HEIGHT := 210.0
@@ -28,6 +29,7 @@ var _year_label: Label
 var _pause_button: Button
 var _save_button: Button
 var _load_button: Button
+var _menu_button: Button
 var _identity_label: Label
 var _resources_label: Label
 var _log_panel: Panel
@@ -171,6 +173,17 @@ func _build_status_bar() -> void:
 	spacer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 	row.add_child(spacer)
+
+	_menu_button = Button.new()
+	_menu_button.text = "☰ Menu"
+	_menu_button.focus_mode = Control.FOCUS_NONE
+	_menu_button.custom_minimum_size = Vector2(112, 36)
+	_menu_button.pressed.connect(
+		func() -> void:
+			menu_requested.emit()
+	)
+
+	row.add_child(_menu_button)
 
 	_save_button = Button.new()
 	_save_button.text = "🛡 Sauvegarde"

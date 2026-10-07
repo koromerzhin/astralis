@@ -4,6 +4,8 @@ const GALAXY_SEED := 827391
 const SAVE_PATH := "user://astralis_save.dat"
 
 var galaxy_generator := GalaxyGenerator.new()
+var main_menu: MainMenu
+var _simulation_was_running := false
 var stars: Array[Dictionary] = []
 var galaxy_camera_position := Vector2.ZERO
 var galaxy_camera_zoom := Vector2.ONE
@@ -318,7 +320,22 @@ func _ready() -> void:
 	hud.log_toggled.connect(_resize_info_panels)
 	hud.save_requested.connect(_on_save_requested)
 	hud.load_requested.connect(_on_load_requested)
+	hud.menu_requested.connect(_on_hud_menu_requested)
 	get_viewport().size_changed.connect(_resize_info_panels)
+
+	main_menu = MainMenu.new()
+	main_menu.new_game_requested.connect(_on_menu_new_game)
+	main_menu.continue_requested.connect(_on_menu_continue)
+	main_menu.resume_requested.connect(_on_menu_resume)
+	main_menu.save_requested.connect(_on_menu_save)
+	main_menu.main_menu_requested.connect(_on_menu_main_menu)
+	main_menu.quit_requested.connect(_on_menu_quit)
+
+	$UI.add_child(main_menu)
+
+	main_menu.show_boot(
+		FileAccess.file_exists(SAVE_PATH)
+	)
 
 func _on_star_selected(star: Dictionary) -> void:
 	var star_id: int = int(star["id"])
@@ -579,6 +596,9 @@ func _show_galaxy() -> void:
 	$Galaxy.queue_redraw()
 
 func _unhandled_input(event: InputEvent) -> void:
+	if main_menu != null and main_menu.visible:
+		return
+
 	if event is InputEventKey:
 		if not event.pressed:
 			return
@@ -1805,6 +1825,48 @@ func _on_load_requested() -> void:
 				"Partie reprise depuis la sauvegarde.",
 				true
 			)
+
+
+func _on_hud_menu_requested() -> void:
+	_simulation_was_running = (
+		$SimulationManager.simulation_running
+	)
+
+	$SimulationManager.simulation_running = false
+
+	main_menu.show_pause()
+
+
+func _on_menu_new_game() -> void:
+	get_tree().reload_current_scene()
+
+
+func _on_menu_continue() -> void:
+	if load_game():
+		main_menu.hide()
+
+
+func _on_menu_resume() -> void:
+	main_menu.hide()
+
+	$SimulationManager.simulation_running = (
+		_simulation_was_running
+	)
+
+
+func _on_menu_save() -> void:
+	if save_game():
+		main_menu.refresh_save_state(
+			FileAccess.file_exists(SAVE_PATH)
+		)
+
+
+func _on_menu_main_menu() -> void:
+	get_tree().reload_current_scene()
+
+
+func _on_menu_quit() -> void:
+	get_tree().quit()
 
 
 func save_game() -> bool:
