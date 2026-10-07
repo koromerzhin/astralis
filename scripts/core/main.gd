@@ -3,6 +3,10 @@ extends Control
 const GALAXY_SEED := 827391
 const SAVE_PATH := "user://astralis_save.dat"
 
+static var pending_seed_text := ""
+static var is_fresh_start := false
+static var last_seed_text := ""
+
 var galaxy_generator := GalaxyGenerator.new()
 var main_menu: MainMenu
 var _simulation_was_running := false
@@ -37,10 +41,11 @@ var encountered_civilization: CivilizationData
 @onready var simulation_manager: SimulationManager = $SimulationManager
 
 func _ready() -> void:
-	stars = galaxy_generator.generate(GALAXY_SEED)
+	var galaxy_seed := _consume_pending_seed()
+	stars = galaxy_generator.generate(galaxy_seed)
 	$SimulationManager.initialize(stars)
 
-	print("Galaxy generated with seed: ", GALAXY_SEED)
+	print("Galaxy generated with seed: ", galaxy_seed)
 	print("Stars generated: ", stars.size())
 
 	# Vue galaxie.
@@ -58,6 +63,10 @@ func _ready() -> void:
 	$SimulationManager.year_changed.connect(
 		_on_year_changed
 	)
+
+	# L'animation céleste suit l'état de la simulation.
+	$System.simulation_manager = $SimulationManager
+	$Planet.simulation_manager = $SimulationManager
 
 	# État initial.
 	$UI/StarInfo.visible = false
@@ -332,9 +341,44 @@ func _ready() -> void:
 
 	$UI.add_child(main_menu)
 
+	var seed_prefill := last_seed_text
+
+	if seed_prefill.is_empty():
+		seed_prefill = String.num_int64(GALAXY_SEED)
+
 	main_menu.show_boot(
-		FileAccess.file_exists(SAVE_PATH)
+		FileAccess.file_exists(SAVE_PATH),
+		seed_prefill
 	)
+
+	if is_fresh_start:
+		is_fresh_start = false
+		main_menu.hide()
+
+func _consume_pending_seed() -> int:
+	var seed_text := pending_seed_text
+	pending_seed_text = ""
+
+	if not seed_text.is_empty():
+		last_seed_text = seed_text.strip_edges()
+
+	return _resolve_seed(seed_text)
+
+
+func _resolve_seed(seed_text: String) -> int:
+	var text := seed_text.strip_edges()
+
+	if (
+		text.is_empty()
+		or text == String.num_int64(GALAXY_SEED)
+	):
+		return GALAXY_SEED
+
+	if text.is_valid_int():
+		return int(text)
+
+	return text.hash()
+
 
 func _on_star_selected(star: Dictionary) -> void:
 	var star_id: int = int(star["id"])
@@ -1839,7 +1883,10 @@ func _open_pause_menu() -> void:
 	main_menu.show_pause()
 
 
-func _on_menu_new_game() -> void:
+func _on_menu_new_game(seed_text: String) -> void:
+	pending_seed_text = seed_text.strip_edges()
+	is_fresh_start = true
+
 	get_tree().reload_current_scene()
 
 

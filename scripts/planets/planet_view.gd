@@ -2,6 +2,7 @@ extends Node2D
 
 
 var planet: PlanetData
+var simulation_manager: SimulationManager
 @export var move_speed := 300.0
 @export var zoom_speed := 0.1
 @export var min_zoom := 0.5
@@ -159,28 +160,34 @@ func _process(delta: float) -> void:
 		)
 
 	if planet != null:
-		var rotation_angle: float = (
-			planet.get_meta(
+		var animated: bool = (
+			simulation_manager == null
+			or simulation_manager.simulation_running
+		)
+
+		if animated:
+			var rotation_angle: float = (
+				planet.get_meta(
+					"rotation_angle",
+					0.0
+				)
+			)
+
+			var rotation_speed: float = (
+				planet.get_meta(
+					"rotation_speed",
+					0.15
+				)
+			)
+
+			rotation_angle += (
+				rotation_speed * delta
+			)
+
+			planet.set_meta(
 				"rotation_angle",
-				0.0
+				rotation_angle
 			)
-		)
-
-		var rotation_speed: float = (
-			planet.get_meta(
-				"rotation_speed",
-				0.15
-			)
-		)
-
-		rotation_angle += (
-			rotation_speed * delta
-		)
-
-		planet.set_meta(
-			"rotation_angle",
-			rotation_angle
-		)
 
 	queue_redraw()
 

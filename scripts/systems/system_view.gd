@@ -4,6 +4,7 @@ signal planet_selected(planet: PlanetData)
 
 var system: Dictionary = {}
 var planets: Array[PlanetData] = []
+var simulation_manager: SimulationManager
 @export var move_speed := 300.0
 @export var zoom_speed := 0.1
 @export var min_zoom := 0.4
@@ -99,32 +100,39 @@ func _process(delta: float) -> void:
 			* delta
 		)
 
-	# Animation des planètes et des lunes.
-	for planet in planets:
-		var angle: float = planet.get_meta("angle")
-		var orbit_speed: float = planet.get_meta("orbit_speed")
+	# Animation des planètes et des lunes, uniquement
+	# lorsque la simulation est en marche.
+	var animated: bool = (
+		simulation_manager == null
+		or simulation_manager.simulation_running
+	)
 
-		angle += orbit_speed * delta
+	if animated:
+		for planet in planets:
+			var angle: float = planet.get_meta("angle")
+			var orbit_speed: float = planet.get_meta("orbit_speed")
 
-		planet.set_meta(
-			"angle",
-			angle
-		)
+			angle += orbit_speed * delta
 
-		var moons: Array[Dictionary] = (
-			planet.get_meta("moons")
-		)
-
-		for moon in moons:
-			var moon_angle: float = moon["angle"]
-			var moon_orbit_speed: float = moon["orbit_speed"]
-
-			moon_angle += (
-				moon_orbit_speed
-				* delta
+			planet.set_meta(
+				"angle",
+				angle
 			)
 
-			moon["angle"] = moon_angle
+			var moons: Array[Dictionary] = (
+				planet.get_meta("moons")
+			)
+
+			for moon in moons:
+				var moon_angle: float = moon["angle"]
+				var moon_orbit_speed: float = moon["orbit_speed"]
+
+				moon_angle += (
+					moon_orbit_speed
+					* delta
+				)
+
+				moon["angle"] = moon_angle
 
 	queue_redraw()
 
