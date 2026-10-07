@@ -200,6 +200,8 @@ func initialize(stars: Array[Dictionary]) -> void:
 			civilization.global_id + 1
 		)
 
+	_reconcile_home_colonies()
+
 # =====================================================
 # BOUCLE DE SIMULATION
 # =====================================================
@@ -468,6 +470,11 @@ func _simulate_system(
 		)
 
 		planet.population = civilization.population
+
+		if planet.colony != null:
+			planet.colony.population = (
+				civilization.population
+			)
 
 		civilization.simulate_economy_and_technology(
 			planet.habitability,
@@ -2171,6 +2178,10 @@ func _simulate_colony_rebellions() -> void:
 				new_civilization.population
 			)
 
+			new_civilization.attach_home_colony(
+				target_planet
+			)
+
 			var relation: RelationData = (
 				_create_relation(
 					civilization,
@@ -2268,6 +2279,10 @@ func _trigger_colony_rebellion(
 
 	target_planet.population = (
 		rebel_civilization.population
+	)
+
+	rebel_civilization.attach_home_colony(
+		target_planet
 	)
 
 	var relation: RelationData = (
@@ -8075,6 +8090,42 @@ func load_from_dict(data: Dictionary) -> void:
 
 	_civilization_allies_dirty = true
 	_rebuild_civilization_allies()
+
+	_reconcile_home_colonies()
+
+
+func _reconcile_home_colonies() -> void:
+	for planet in _planets.values():
+		if planet == null:
+			continue
+
+		if planet.colony != null:
+			continue
+
+		if planet.population <= 0:
+			continue
+
+		var owner: CivilizationData = (
+			planet.civilization
+		)
+
+		if (
+			owner == null
+			and planet.colony_owner_id >= 0
+			and _civilizations.has(
+				planet.colony_owner_id
+			)
+		):
+			owner = _civilizations[
+				planet.colony_owner_id
+			]
+
+		if owner == null:
+			continue
+
+		owner.attach_home_colony(
+			planet
+		)
 
 
 func _clear_simulation_state() -> void:

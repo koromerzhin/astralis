@@ -26,6 +26,8 @@ var energy: float
 var biological_resources: float
 var colony_owner_id: int = -1
 var colony: ColonyData
+var is_explored: bool = false
+var is_studied: bool = false
 
 func initialize(
 	planet_id: int,
@@ -254,6 +256,12 @@ func _generate_civilization() -> void:
 
 	civilization.population = population
 
+	# Tout monde habité possède une colonie :
+	# c'est par elle que la population progresse.
+	civilization.attach_home_colony(
+		self
+	)
+
 func _generate_resources() -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed
@@ -390,6 +398,8 @@ func to_dict() -> Dictionary:
 		"energy": energy,
 		"biological_resources": biological_resources,
 		"colony_owner_id": colony_owner_id,
+		"is_explored": is_explored,
+		"is_studied": is_studied,
 		"civilization_id": (
 			civilization.global_id
 			if civilization != null
@@ -429,5 +439,7 @@ func from_dict(data: Dictionary) -> void:
 	energy = data["energy"]
 	biological_resources = data["biological_resources"]
 	colony_owner_id = data["colony_owner_id"]
+	is_explored = data.get("is_explored", false)
+	is_studied = data.get("is_studied", false)
 	civilization = null
 	colony = null

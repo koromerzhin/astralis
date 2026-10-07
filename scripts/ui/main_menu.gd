@@ -2,8 +2,9 @@ extends Control
 
 class_name MainMenu
 
-signal new_game_requested(seed_text: String)
-signal continue_requested
+signal new_game_requested(seed_text: String, civilization_name: String)
+signal continue_requested(save_key: String)
+signal delete_requested(save_key: String)
 signal resume_requested
 signal save_requested
 signal main_menu_requested
@@ -18,12 +19,17 @@ var quit_button: Button
 var title_label: Label
 var subtitle_label: Label
 var seed_box: VBoxContainer
+var civ_name_line_edit: LineEdit
 var seed_line_edit: LineEdit
 var random_seed_button: Button
 var start_seed_button: Button
 var back_seed_button: Button
+var save_box: VBoxContainer
+var save_list: VBoxContainer
+var back_saves_button: Button
 var _overlay: ColorRect
 var save_exists := false
+var _saves: Array = []
 
 func _init() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -43,7 +49,7 @@ func _init() -> void:
 
 	var box := VBoxContainer.new()
 
-	box.custom_minimum_size = Vector2(340, 0)
+	box.custom_minimum_size = Vector2(380, 0)
 	box.add_theme_constant_override("separation", 14)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
 	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -79,6 +85,25 @@ func _init() -> void:
 	seed_box.add_theme_constant_override("separation", 10)
 	seed_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	box.add_child(seed_box)
+
+	var civ_name_hint := Label.new()
+
+	civ_name_hint.text = "Nom de votre civilisation"
+	civ_name_hint.horizontal_alignment = (
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
+	seed_box.add_child(civ_name_hint)
+
+	civ_name_line_edit = LineEdit.new()
+
+	civ_name_line_edit.placeholder_text = (
+		"Laissez vide pour un nom autogénéré"
+	)
+	civ_name_line_edit.text_submitted.connect(
+		func(_text: String) -> void:
+			_on_seed_start()
+	)
+	seed_box.add_child(civ_name_line_edit)
 
 	var seed_hint_label := Label.new()
 
@@ -124,10 +149,48 @@ func _init() -> void:
 
 	seed_box.visible = false
 
+	save_box = VBoxContainer.new()
+
+	save_box.add_theme_constant_override("separation", 10)
+	save_box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	box.add_child(save_box)
+
+	var save_title_label := Label.new()
+
+	save_title_label.text = "CHOISIR UNE PARTIE"
+	save_title_label.horizontal_alignment = (
+		HORIZONTAL_ALIGNMENT_CENTER
+	)
+	save_box.add_child(save_title_label)
+
+	var save_scroll := ScrollContainer.new()
+
+	save_scroll.custom_minimum_size = Vector2(380, 220)
+	save_scroll.horizontal_scroll_mode = (
+		ScrollContainer.SCROLL_MODE_DISABLED
+	)
+	save_scroll.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	save_box.add_child(save_scroll)
+
+	save_list = VBoxContainer.new()
+
+	save_list.add_theme_constant_override("separation", 8)
+	save_list.size_flags_horizontal = (
+		Control.SIZE_EXPAND_FILL
+	)
+	save_scroll.add_child(save_list)
+
+	back_saves_button = _make_button("Retour")
+	back_saves_button.pressed.connect(
+		_on_saves_back
+	)
+	save_box.add_child(back_saves_button)
+
+	save_box.visible = false
+
 	continue_button = _make_button("Reprendre la partie")
 	continue_button.pressed.connect(
-		func() -> void:
-			continue_requested.emit()
+		_on_continue_pressed
 	)
 	box.add_child(continue_button)
 
@@ -177,11 +240,97 @@ func _make_spacer() -> Control:
 	return spacer
 
 
+func _clear_save_list() -> void:
+	for child in save_list.get_children():
+		save_list.remove_child(child)
+		child.queue_free()
+
+
+func refresh_saves(saves: Array) -> void:
+	_saves = saves
+	save_exists = not saves.is_empty()
+	continue_button.disabled = not save_exists
+
+	_clear_save_list()
+
+	for save_meta in saves:
+		var row := HBoxContainer.new()
+
+		row.custom_minimum_size = Vector2(0, 44)
+		row.add_theme_constant_override("separation", 8)
+
+		var load_button := _make_button(
+			_format_save_label(save_meta)
+		)
+
+		load_button.text_overrun_behavior = (
+			TextServer.OVERRUN_TRIM_ELLIPSIS
+		)
+		load_button.size_flags_horizontal = (
+			Control.SIZE_EXPAND_FILL
+		)
+		load_button.pressed.connect(
+			func() -> void:
+				continue_requested.emit(
+					save_meta["key"]
+				)
+		)
+
+		row.add_child(load_button)
+
+		var delete_button := _make_button("Supprimer")
+
+		delete_button.custom_minimum_size = Vector2(110, 44)
+		delete_button.pressed.connect(
+			func() -> void:
+				delete_requested.emit(
+					save_meta["key"]
+				)
+		)
+
+		row.add_child(delete_button)
+
+		save_list.add_child(row)
+
+
+func _format_save_label(save_meta: Dictionary) -> String:
+	var label := str(
+		save_meta.get(
+			"name",
+			"Sans nom"
+		)
+	)
+
+	label += "  —  seed "
+	label += str(
+		save_meta.get(
+			"seed",
+			0
+		)
+	)
+
+	var saved_at := str(
+		save_meta.get(
+			"saved_at",
+			""
+		)
+	)
+
+	if saved_at != "":
+		if saved_at.length() > 16:
+			saved_at = saved_at.substr(0, 16)
+
+		label += "  —  " + saved_at
+
+	return label
+
+
 func show_boot(
-	has_save: bool,
+	saves: Array,
 	seed_default: String = ""
 ) -> void:
-	save_exists = has_save
+	_saves = saves
+
 	title_label.text = "ASTRALIS"
 	subtitle_label.text = "En quête d'un nouvel essor"
 
@@ -194,8 +343,11 @@ func show_boot(
 
 	seed_box.visible = false
 	seed_line_edit.text = seed_default
+	civ_name_line_edit.text = ""
 
-	refresh_save_state(has_save)
+	save_box.visible = false
+
+	refresh_saves(saves)
 
 	visible = true
 
@@ -212,6 +364,7 @@ func show_pause() -> void:
 	quit_button.visible = true
 
 	seed_box.visible = false
+	save_box.visible = false
 
 	visible = true
 
@@ -223,7 +376,7 @@ func refresh_save_state(has_save: bool) -> void:
 
 func _on_new_game_pressed() -> void:
 	title_label.text = "NOUVELLE PARTIE"
-	subtitle_label.text = "Personnalisez la seed de votre galaxie"
+	subtitle_label.text = "Votre civilisation au cœur de la galaxie"
 
 	new_game_button.visible = false
 	continue_button.visible = false
@@ -231,25 +384,19 @@ func _on_new_game_pressed() -> void:
 
 	seed_box.visible = true
 
-	seed_line_edit.grab_focus()
-	seed_line_edit.select_all()
+	civ_name_line_edit.grab_focus()
 
 
 func _on_seed_back() -> void:
 	seed_box.visible = false
-
-	title_label.text = "ASTRALIS"
-	subtitle_label.text = "En quête d'un nouvel essor"
-
-	new_game_button.visible = true
-	continue_button.visible = true
-	quit_button.visible = true
-
-	refresh_save_state(save_exists)
+	show_boot(_saves, seed_line_edit.text)
 
 
 func _on_seed_start() -> void:
-	new_game_requested.emit(seed_line_edit.text)
+	new_game_requested.emit(
+		seed_line_edit.text,
+		civ_name_line_edit.text
+	)
 
 
 func _on_seed_random() -> void:
@@ -259,6 +406,25 @@ func _on_seed_random() -> void:
 	seed_line_edit.text = String.num_int64(
 		rng.randi_range(1, 999999999)
 	)
+
+
+func _on_continue_pressed() -> void:
+	if not save_exists:
+		return
+
+	title_label.text = "REPRENDRE"
+	subtitle_label.text = "Choisissez une partie"
+
+	new_game_button.visible = false
+	continue_button.visible = false
+	quit_button.visible = false
+
+	save_box.visible = true
+
+
+func _on_saves_back() -> void:
+	save_box.visible = false
+	show_boot(_saves, seed_line_edit.text)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -272,5 +438,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		if event.keycode == KEY_ESCAPE:
 			if seed_box.visible:
 				_on_seed_back()
+			elif save_box.visible:
+				_on_saves_back()
 			elif resume_button.visible:
 				resume_requested.emit()

@@ -44,6 +44,11 @@ func generate(
 				planet.global_id
 			)
 
+			if planet.colony != null:
+				planet.colony_owner_id = (
+					planet.civilization.global_id
+				)
+
 		planets.append(planet)
 
 	_generate_colonies(

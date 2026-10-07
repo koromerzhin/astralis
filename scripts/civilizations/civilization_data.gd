@@ -492,6 +492,40 @@ func get_interaction_range() -> float:
 			return 50.0
 
 
+func attach_home_colony(
+	planet: PlanetData
+) -> void:
+	if planet == null:
+		return
+
+	if planet.colony != null:
+		return
+
+	# La colonie de la planète mère n'est pas ajoutée au
+	# tableau « colonies » : la population du monde d'origine
+	# est déjà comptée via civilization.population, afin de
+	# ne pas la compter deux fois.
+	var colony := ColonyData.new()
+
+	colony.initialize(
+		-1,
+		seed,
+		planet
+	)
+
+	colony.population = population
+	colony.population_capacity = max(
+		1000,
+		planet.population_capacity
+	)
+
+	planet.colony = colony
+	planet.colony_owner_id = global_id
+
+	# Une planète colonisée est connue : exploration et étude effectuées.
+	planet.is_explored = true
+	planet.is_studied = true
+
 func add_colony(
 	colony_seed: int,
 	target_planet: PlanetData
@@ -522,6 +556,10 @@ func add_colony(
 
 	target_planet.colony = colony
 	target_planet.colony_owner_id = global_id
+
+	# Une planète colonisée est connue : exploration et étude effectuées.
+	target_planet.is_explored = true
+	target_planet.is_studied = true
 
 
 func get_total_population() -> int:

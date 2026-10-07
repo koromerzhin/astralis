@@ -1,11 +1,14 @@
 extends Control
 
 const GALAXY_SEED := 827391
-const SAVE_PATH := "user://astralis_save.dat"
+const SAVE_DIR := "user://saves"
 
 static var pending_seed_text := ""
+static var pending_civilization_name := ""
 static var is_fresh_start := false
 static var last_seed_text := ""
+
+var galaxy_seed := GALAXY_SEED
 
 var galaxy_generator := GalaxyGenerator.new()
 var main_menu: MainMenu
@@ -30,7 +33,7 @@ var diplomacy_war_button: Button
 var hud: Hud
 
 @onready var explore_planet_button: Button = (
-	$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/ExploreButton
+	$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ButtonArea/ExploreButton
 )
 
 var study_planet_button: Button
@@ -41,7 +44,7 @@ var encountered_civilization: CivilizationData
 @onready var simulation_manager: SimulationManager = $SimulationManager
 
 func _ready() -> void:
-	var galaxy_seed := _consume_pending_seed()
+	galaxy_seed = _consume_pending_seed()
 	stars = galaxy_generator.generate(galaxy_seed)
 	$SimulationManager.initialize(stars)
 
@@ -87,7 +90,7 @@ func _ready() -> void:
 	# --------------------------------------------------
 
 	var star_info_container: VBoxContainer = (
-		$UI/StarInfo/MarginContainer/ScrollContainer/VBoxContainer
+		$UI/StarInfo/MarginContainer/VBoxContainer/ButtonArea
 	)
 
 	# Bouton de voyage.
@@ -197,7 +200,7 @@ func _ready() -> void:
 	# --------------------------------------------------
 
 	var planet_info_container: VBoxContainer = (
-		$UI/PlanetInfo/MarginContainer/ScrollContainer/VBoxContainer
+		$UI/PlanetInfo/MarginContainer/VBoxContainer/ButtonArea
 	)
 
 	view_planet_button = Button.new()
@@ -229,7 +232,7 @@ func _ready() -> void:
 	)
 
 	var planet_view_info_container: VBoxContainer = (
-		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer
+		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ButtonArea
 	)
 
 	# Bouton d'étude.
@@ -334,6 +337,7 @@ func _ready() -> void:
 	main_menu = MainMenu.new()
 	main_menu.new_game_requested.connect(_on_menu_new_game)
 	main_menu.continue_requested.connect(_on_menu_continue)
+	main_menu.delete_requested.connect(_on_menu_delete)
 	main_menu.resume_requested.connect(_on_menu_resume)
 	main_menu.save_requested.connect(_on_menu_save)
 	main_menu.main_menu_requested.connect(_on_menu_main_menu)
@@ -341,19 +345,25 @@ func _ready() -> void:
 
 	$UI.add_child(main_menu)
 
-	var seed_prefill := last_seed_text
-
-	if seed_prefill.is_empty():
-		seed_prefill = String.num_int64(GALAXY_SEED)
+	var seed_prefill := _seed_prefill()
 
 	main_menu.show_boot(
-		FileAccess.file_exists(SAVE_PATH),
+		list_saves(),
 		seed_prefill
 	)
 
 	if is_fresh_start:
 		is_fresh_start = false
 		main_menu.hide()
+		_start_on_home_planet()
+
+func _seed_prefill() -> String:
+	var seed_prefill := last_seed_text
+
+	if seed_prefill.is_empty():
+		seed_prefill = String.num_int64(GALAXY_SEED)
+
+	return seed_prefill
 
 func _consume_pending_seed() -> int:
 	var seed_text := pending_seed_text
@@ -756,6 +766,7 @@ func _initialize_player() -> void:
 		return
 
 	var starting_star: Dictionary = {}
+	var home_planet: PlanetData = null
 
 	for star in stars:
 		var star_id: int = int(star["id"])
@@ -788,6 +799,7 @@ func _initialize_player() -> void:
 				planet.civilization.global_id
 			)
 
+			home_planet = planet
 			has_civilization = true
 			break
 
@@ -811,6 +823,18 @@ func _initialize_player() -> void:
 		starting_star["position"]
 	)
 
+	if home_planet != null:
+		current_planet = home_planet
+		home_planet.is_explored = true
+		home_planet.is_studied = true
+
+		var chosen_name := _consume_pending_civilization_name()
+
+		if not chosen_name.is_empty() and (
+			home_planet.civilization != null
+		):
+			home_planet.civilization.name = chosen_name
+
 	$Galaxy.set_player(player)
 
 	simulation_manager.player_civilization_id = (
@@ -823,6 +847,27 @@ func _initialize_player() -> void:
 		" | Civilisation #",
 		player.civilization_id
 	)
+
+func _consume_pending_civilization_name() -> String:
+	var chosen_name := pending_civilization_name.strip_edges()
+	pending_civilization_name = ""
+	return chosen_name
+
+
+func _start_on_home_planet() -> void:
+	if current_planet == null:
+		_show_galaxy()
+		return
+
+	current_system = simulation_manager.get_system(
+		player.current_system_id
+	)
+
+	if current_system.is_empty():
+		_show_galaxy()
+		return
+
+	_on_view_planet_button_pressed()
 
 func _on_enter_system_button_pressed() -> void:
 	if player.traveling:
@@ -890,7 +935,7 @@ func _on_travel_button_pressed() -> void:
 	enter_system_button.visible = false
 
 	var travel_info: String = (
-		$UI/StarInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel.text
+		$UI/StarInfo/MarginContainer/VBoxContainer/ScrollContainer/VBoxContainer/InfoLabel.text
 		+ "\n\nVoyage en cours..."
 	)
 
@@ -1153,7 +1198,7 @@ func _show_star_info(info: String) -> void:
 func _set_info_text(panel: Panel, text: String) -> void:
 	var info_label: Label = (
 		panel.get_node(
-			"MarginContainer/ScrollContainer/VBoxContainer/InfoLabel"
+			"MarginContainer/VBoxContainer/ScrollContainer/VBoxContainer/InfoLabel"
 		)
 	)
 
@@ -1186,11 +1231,19 @@ func _resize_info_async(panel: Panel) -> void:
 	if not panel.visible:
 		return
 
-	var vbox: Control = panel.get_node(
-		"MarginContainer/ScrollContainer/VBoxContainer"
+	var scroll_content: Control = panel.get_node(
+		"MarginContainer/VBoxContainer/ScrollContainer/VBoxContainer"
 	)
 
-	var content_height: float = vbox.size.y + 26.0
+	var footer: Control = panel.get_node(
+		"MarginContainer/VBoxContainer/ButtonArea"
+	)
+
+	var content_height: float = (
+		scroll_content.size.y
+		+ footer.size.y
+		+ 34.0
+	)
 
 	var max_height: float = _get_info_panel_max_height(panel)
 
@@ -1276,26 +1329,60 @@ func _on_view_planet_button_pressed() -> void:
 	$Planet/Camera2D.position = Vector2.ZERO
 	$Planet/Camera2D.zoom = Vector2.ONE
 
-	$Planet.set_planet(current_planet)
+	var planet: PlanetData = current_planet
+
+	$Planet.set_planet(planet)
+
+	# Une planète colonisée est connue : exploration et étude effectuées,
+	# même si les drapeaux manquent (sauvegardes anciennes).
+	var known: bool = (
+		planet.is_explored
+		or planet.colony != null
+	)
+	var studied: bool = (
+		planet.is_studied
+		or planet.colony != null
+	)
+
+	var info: String = _build_planet_view_text(planet)
+
+	if known:
+		info += "\n\n" + _build_exploration_text(planet)
+
+	if studied:
+		info += "\n\n" + _build_study_text(planet)
 
 	_set_info_text(
 		$UI/PlanetViewInfo,
-		_build_planet_view_text(current_planet)
+		info
 	)
 
 	explore_planet_button.visible = true
-	explore_planet_button.disabled = false
-	explore_planet_button.text = "Explorer la planète"
+	explore_planet_button.disabled = known
+	explore_planet_button.text = (
+		"Planète explorée"
+		if known
+		else "Explorer la planète"
+	)
 
-	study_planet_button.visible = false
-	study_planet_button.disabled = false
-	study_planet_button.text = "Étudier la planète"
+	study_planet_button.visible = known
+	study_planet_button.disabled = studied
+	study_planet_button.text = (
+		"Étude terminée"
+		if studied
+		else "Étudier la planète"
+	)
 
-	exploit_planet_button.visible = false
+	exploit_planet_button.visible = (
+		known
+		and (
+			planet.minerals > 0.0
+			or planet.energy > 0.0
+			or planet.biological_resources > 0.0
+		)
+	)
 	exploit_planet_button.disabled = false
 	exploit_planet_button.text = "Exploiter les ressources"
-
-	var planet: PlanetData = current_planet
 
 	colonize_planet_button.visible = (
 		planet.type != "gas_giant"
@@ -1393,6 +1480,47 @@ func _build_planet_view_text(
 		info += "\nPopulation : "
 		info += str(planet.population)
 
+		if planet.colony != null:
+			var home_colony: ColonyData = planet.colony
+
+			info += "\n\nCOLONIE\n"
+
+			info += "Capacité : "
+			info += str(
+				home_colony.population_capacity
+			)
+			info += "\n"
+
+			info += "Développement : "
+			info += str(
+				snapped(
+					home_colony.development,
+					0.1
+				)
+			)
+			info += "\n"
+
+			info += "Production : "
+			info += str(
+				snapped(
+					home_colony.production,
+					0.1
+				)
+			)
+			info += "\n"
+
+			info += "Stabilité : "
+			info += str(
+				snapped(
+					home_colony.stability,
+					0.1
+				)
+			)
+			info += "\n"
+
+			info += "Statut : "
+			info += home_colony.political_status
+
 	elif planet.colony != null:
 		var colony: ColonyData = planet.colony
 
@@ -1448,6 +1576,34 @@ func _on_explore_planet_button_pressed() -> void:
 
 	var planet: PlanetData = current_planet
 
+	planet.is_explored = true
+
+	_set_info_text(
+		$UI/PlanetViewInfo,
+		_build_exploration_text(planet)
+	)
+
+	explore_planet_button.text = "Planète explorée"
+	explore_planet_button.disabled = true
+
+	# Les actions deviennent disponibles.
+	study_planet_button.visible = true
+
+	exploit_planet_button.visible = (
+		planet.minerals > 0.0
+		or planet.energy > 0.0
+		or planet.biological_resources > 0.0
+	)
+
+	colonize_planet_button.visible = (
+		planet.type != "gas_giant"
+		and planet.civilization == null
+		and planet.colony_owner_id == -1
+	)
+
+func _build_exploration_text(
+	planet: PlanetData
+) -> String:
 	var discovery := ""
 
 	if planet.has_life:
@@ -1497,29 +1653,7 @@ func _on_explore_planet_button_pressed() -> void:
 			"\n\nAucune civilisation intelligente détectée."
 		)
 
-	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel
-	)
-
-	_set_info_text($UI/PlanetViewInfo, discovery)
-
-	explore_planet_button.text = "Planète explorée"
-	explore_planet_button.disabled = true
-
-	# Les actions deviennent disponibles.
-	study_planet_button.visible = true
-
-	exploit_planet_button.visible = (
-		planet.minerals > 0.0
-		or planet.energy > 0.0
-		or planet.biological_resources > 0.0
-	)
-
-	colonize_planet_button.visible = (
-		planet.type != "gas_giant"
-		and planet.civilization == null
-		and planet.colony_owner_id == -1
-	)
+	return discovery
 
 func _on_study_planet_button_pressed() -> void:
 	if current_planet == null:
@@ -1527,6 +1661,19 @@ func _on_study_planet_button_pressed() -> void:
 
 	var planet: PlanetData = current_planet
 
+	planet.is_studied = true
+
+	_set_info_text(
+		$UI/PlanetViewInfo,
+		_build_study_text(planet)
+	)
+
+	study_planet_button.text = "Étude terminée"
+	study_planet_button.disabled = true
+
+func _build_study_text(
+	planet: PlanetData
+) -> String:
 	var info := "ÉTUDE SCIENTIFIQUE\n\n"
 
 	info += "La planète présente une habitabilité de "
@@ -1551,14 +1698,7 @@ func _on_study_planet_button_pressed() -> void:
 	else:
 		info += "\nLa planète est située hors de la zone habitable."
 
-	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel
-	)
-
-	_set_info_text($UI/PlanetViewInfo, info)
-
-	study_planet_button.text = "Étude terminée"
-	study_planet_button.disabled = true
+	return info
 func _on_exploit_planet_button_pressed() -> void:
 	if current_planet == null:
 		return
@@ -1586,7 +1726,7 @@ func _on_exploit_planet_button_pressed() -> void:
 	info += "\n\nLes ressources ont été identifiées."
 
 	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel
+		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ScrollContainer/VBoxContainer/InfoLabel
 	)
 
 	_set_info_text($UI/PlanetViewInfo, info)
@@ -1883,16 +2023,38 @@ func _open_pause_menu() -> void:
 	main_menu.show_pause()
 
 
-func _on_menu_new_game(seed_text: String) -> void:
+func _on_menu_new_game(
+	seed_text: String,
+	civilization_name: String
+) -> void:
 	pending_seed_text = seed_text.strip_edges()
+	pending_civilization_name = civilization_name
 	is_fresh_start = true
 
 	get_tree().reload_current_scene()
 
 
-func _on_menu_continue() -> void:
-	if load_game():
+func _on_menu_continue(save_key: String) -> void:
+	if save_key.is_empty():
+		return
+
+	if load_game(save_key):
 		main_menu.hide()
+
+
+func _on_menu_delete(save_key: String) -> void:
+	if not delete_save(save_key):
+		return
+
+	var saves := list_saves()
+
+	if saves.is_empty():
+		main_menu.show_boot(
+			saves,
+			_seed_prefill()
+		)
+	else:
+		main_menu.refresh_saves(saves)
 
 
 func _on_menu_resume() -> void:
@@ -1906,7 +2068,7 @@ func _on_menu_resume() -> void:
 func _on_menu_save() -> void:
 	if save_game():
 		main_menu.refresh_save_state(
-			FileAccess.file_exists(SAVE_PATH)
+			not list_saves().is_empty()
 		)
 
 
@@ -1918,23 +2080,33 @@ func _on_menu_quit() -> void:
 	get_tree().quit()
 
 
-func save_game() -> bool:
+func save_game(save_key: String = "") -> bool:
+	_ensure_save_dir()
+
+	if save_key.is_empty():
+		save_key = _save_key_for_current_game()
+
+	var save_path := SAVE_DIR + "/" + save_key + ".dat"
+
 	var payload := {
-		"version": 1,
+		"version": 2,
 		"saved_at": Time.get_datetime_string_from_system(),
+		"civilization_name": _current_civilization_name(),
+		"seed": galaxy_seed,
+		"save_key": save_key,
 		"player": player.to_dict(),
 		"simulation": simulation_manager.save_to_dict()
 	}
 
 	var file := FileAccess.open(
-		SAVE_PATH,
+		save_path,
 		FileAccess.WRITE
 	)
 
 	if file == null:
 		push_error(
 			"Impossible d'ouvrir la sauvegarde : "
-			+ SAVE_PATH
+			+ save_path
 		)
 
 		return false
@@ -1951,12 +2123,14 @@ func save_game() -> bool:
 	return true
 
 
-func load_game() -> bool:
-	if not FileAccess.file_exists(SAVE_PATH):
+func load_game(save_key: String) -> bool:
+	var save_path := SAVE_DIR + "/" + save_key + ".dat"
+
+	if not FileAccess.file_exists(save_path):
 		return false
 
 	var file := FileAccess.open(
-		SAVE_PATH,
+		save_path,
 		FileAccess.READ
 	)
 
@@ -1980,12 +2154,133 @@ func load_game() -> bool:
 
 	player.from_dict(parsed["player"])
 
+	galaxy_seed = int(
+		parsed.get(
+			"seed",
+			GALAXY_SEED
+		)
+	)
+
 	_refresh_after_load()
 
 	if hud != null:
 		hud.refresh()
 
 	return true
+
+
+func list_saves() -> Array:
+	_ensure_save_dir()
+
+	var result: Array = []
+	var dir := DirAccess.open(SAVE_DIR)
+
+	if dir == null:
+		return result
+
+	dir.list_dir_begin()
+
+	var file_name := dir.get_next()
+
+	while file_name != "":
+		if not dir.current_is_dir() and (
+			file_name.ends_with(".dat")
+		):
+			var save_key := file_name.trim_suffix(".dat")
+			var save_meta := _read_save_meta(
+				save_key
+			)
+
+			if save_meta != null:
+				result.append(save_meta)
+
+		file_name = dir.get_next()
+
+	dir.list_dir_end()
+	return result
+
+
+func delete_save(save_key: String) -> bool:
+	var save_path := SAVE_DIR + "/" + save_key + ".dat"
+
+	if not FileAccess.file_exists(save_path):
+		return false
+
+	return (
+		DirAccess.remove_absolute(save_path)
+		== OK
+	)
+
+
+func _ensure_save_dir() -> void:
+	if not DirAccess.dir_exists_absolute(SAVE_DIR):
+		DirAccess.make_dir_recursive_absolute(SAVE_DIR)
+
+
+func _save_key_for_current_game() -> String:
+	if player.civilization_id < 0:
+		return "civilisation"
+
+	var raw_key := (
+		_current_civilization_name()
+		+ "|"
+		+ str(galaxy_seed)
+	)
+
+	return str(abs(raw_key.hash()))
+
+
+func _current_civilization_name() -> String:
+	var civilization := simulation_manager.get_civilization(
+		player.civilization_id
+	)
+
+	if civilization == null:
+		return "Civilisation"
+
+	return civilization.name
+
+
+func _read_save_meta(save_key: String) -> Dictionary:
+	var save_path := SAVE_DIR + "/" + save_key + ".dat"
+	var file := FileAccess.open(
+		save_path,
+		FileAccess.READ
+	)
+
+	if file == null:
+		return {}
+
+	var parsed = str_to_var(
+		file.get_as_text()
+	)
+
+	file.close()
+
+	if parsed == null or not parsed is Dictionary:
+		return {}
+
+	return {
+		"key": save_key,
+		"name": str(
+			parsed.get(
+				"civilization_name",
+				"Sans nom"
+			)
+		),
+		"seed": int(
+			parsed.get(
+				"seed",
+				GALAXY_SEED
+			)
+		),
+		"saved_at": str(
+			parsed.get(
+				"saved_at",
+				""
+			)
+		)
+	}
 
 
 func _stars_from_simulation() -> Array[Dictionary]:
