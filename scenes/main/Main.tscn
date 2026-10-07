@@ -51,12 +51,18 @@ theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/StarInfo/MarginContainer" unique_id=1485920084]
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/StarInfo/MarginContainer" unique_id=101010101]
 layout_mode = 2
-size_flags_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+follow_focus = true
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/StarInfo/MarginContainer/ScrollContainer" unique_id=1485920084]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="InfoLabel" type="Label" parent="UI/StarInfo/MarginContainer/VBoxContainer" unique_id=252663770]
+[node name="InfoLabel" type="Label" parent="UI/StarInfo/MarginContainer/ScrollContainer/VBoxContainer" unique_id=252663770]
 layout_mode = 2
 theme_override_font_sizes/font_size = 18
 autowrap_mode = 3
@@ -82,12 +88,18 @@ theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/PlanetInfo/MarginContainer" unique_id=1261331845]
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/PlanetInfo/MarginContainer" unique_id=101010102]
 layout_mode = 2
-size_flags_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+follow_focus = true
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/PlanetInfo/MarginContainer/ScrollContainer" unique_id=1261331845]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="InfoLabel" type="Label" parent="UI/PlanetInfo/MarginContainer/VBoxContainer" unique_id=1134996720]
+[node name="InfoLabel" type="Label" parent="UI/PlanetInfo/MarginContainer/ScrollContainer/VBoxContainer" unique_id=1134996720]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 autowrap_mode = 3
@@ -113,17 +125,23 @@ theme_override_constants/margin_top = 12
 theme_override_constants/margin_right = 12
 theme_override_constants/margin_bottom = 12
 
-[node name="VBoxContainer" type="VBoxContainer" parent="UI/PlanetViewInfo/MarginContainer" unique_id=1564832193]
+[node name="ScrollContainer" type="ScrollContainer" parent="UI/PlanetViewInfo/MarginContainer" unique_id=101010103]
 layout_mode = 2
-size_flags_vertical = 2
+horizontal_scroll_mode = 0
+vertical_scroll_mode = 1
+follow_focus = true
+
+[node name="VBoxContainer" type="VBoxContainer" parent="UI/PlanetViewInfo/MarginContainer/ScrollContainer" unique_id=1564832193]
+layout_mode = 2
+size_flags_horizontal = 3
 theme_override_constants/separation = 8
 
-[node name="InfoLabel" type="Label" parent="UI/PlanetViewInfo/MarginContainer/VBoxContainer" unique_id=1319079870]
+[node name="InfoLabel" type="Label" parent="UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer" unique_id=1319079870]
 layout_mode = 2
 theme_override_font_sizes/font_size = 16
 autowrap_mode = 3
 
-[node name="ExploreButton" type="Button" parent="UI/PlanetViewInfo/MarginContainer/VBoxContainer" unique_id=2094687982]
+[node name="ExploreButton" type="Button" parent="UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer" unique_id=2094687982]
 layout_mode = 2
 
 [node name="SimulationManager" type="Node" parent="." unique_id=756863886]

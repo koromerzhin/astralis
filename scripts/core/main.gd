@@ -30,7 +30,7 @@ var diplomacy_war_button: Button
 var hud: Hud
 
 @onready var explore_planet_button: Button = (
-	$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ExploreButton
+	$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/ExploreButton
 )
 
 var study_planet_button: Button
@@ -87,7 +87,7 @@ func _ready() -> void:
 	# --------------------------------------------------
 
 	var star_info_container: VBoxContainer = (
-		$UI/StarInfo/MarginContainer/VBoxContainer
+		$UI/StarInfo/MarginContainer/ScrollContainer/VBoxContainer
 	)
 
 	# Bouton de voyage.
@@ -197,7 +197,7 @@ func _ready() -> void:
 	# --------------------------------------------------
 
 	var planet_info_container: VBoxContainer = (
-		$UI/PlanetInfo/MarginContainer/VBoxContainer
+		$UI/PlanetInfo/MarginContainer/ScrollContainer/VBoxContainer
 	)
 
 	view_planet_button = Button.new()
@@ -229,7 +229,7 @@ func _ready() -> void:
 	)
 
 	var planet_view_info_container: VBoxContainer = (
-		$UI/PlanetViewInfo/MarginContainer/VBoxContainer
+		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer
 	)
 
 	# Bouton d'étude.
@@ -890,7 +890,7 @@ func _on_travel_button_pressed() -> void:
 	enter_system_button.visible = false
 
 	var travel_info: String = (
-		$UI/StarInfo/MarginContainer/VBoxContainer/InfoLabel.text
+		$UI/StarInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel.text
 		+ "\n\nVoyage en cours..."
 	)
 
@@ -1153,7 +1153,7 @@ func _show_star_info(info: String) -> void:
 func _set_info_text(panel: Panel, text: String) -> void:
 	var info_label: Label = (
 		panel.get_node(
-			"MarginContainer/VBoxContainer/InfoLabel"
+			"MarginContainer/ScrollContainer/VBoxContainer/InfoLabel"
 		)
 	)
 
@@ -1187,7 +1187,7 @@ func _resize_info_async(panel: Panel) -> void:
 		return
 
 	var vbox: Control = panel.get_node(
-		"MarginContainer/VBoxContainer"
+		"MarginContainer/ScrollContainer/VBoxContainer"
 	)
 
 	var content_height: float = vbox.size.y + 26.0
@@ -1498,7 +1498,7 @@ func _on_explore_planet_button_pressed() -> void:
 		)
 
 	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
+		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel
 	)
 
 	_set_info_text($UI/PlanetViewInfo, discovery)
@@ -1552,7 +1552,7 @@ func _on_study_planet_button_pressed() -> void:
 		info += "\nLa planète est située hors de la zone habitable."
 
 	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
+		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel
 	)
 
 	_set_info_text($UI/PlanetViewInfo, info)
@@ -1586,7 +1586,7 @@ func _on_exploit_planet_button_pressed() -> void:
 	info += "\n\nLes ressources ont été identifiées."
 
 	var info_label: Label = (
-		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/InfoLabel
+		$UI/PlanetViewInfo/MarginContainer/ScrollContainer/VBoxContainer/InfoLabel
 	)
 
 	_set_info_text($UI/PlanetViewInfo, info)
