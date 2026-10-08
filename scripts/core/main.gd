@@ -1443,6 +1443,9 @@ func _on_view_planet_button_pressed() -> void:
 	var planet: PlanetData = current_planet
 
 	$Planet.set_planet(planet)
+	$Planet.set_ship_in_orbit(
+		player.current_planet_id == planet.global_id
+	)
 
 	_refresh_planet_view_text()
 	_refresh_planet_action_buttons()
@@ -1552,6 +1555,7 @@ func _on_orbit_planet_button_pressed() -> void:
 	# Le vaisseau se place en orbite autour de la planète.
 	player.current_planet_id = current_planet.global_id
 	_sync_ship_planet()
+	$Planet.set_ship_in_orbit(true)
 
 	if planet_list != null:
 		planet_list.refresh_statuses()

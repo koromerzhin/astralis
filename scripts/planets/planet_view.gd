@@ -10,6 +10,21 @@ var simulation_manager: SimulationManager
 
 @onready var camera: Camera2D = $Camera2D
 
+# Le vaisseau du joueur tourne autour de la planète lorsqu'il est en orbite.
+var ship_in_orbit := false
+var ship_orbit_angle := 0.0
+@export var ship_orbit_speed := 1.6
+
+
+func set_ship_in_orbit(in_orbit: bool) -> void:
+	if ship_in_orbit == in_orbit:
+		return
+
+	ship_in_orbit = in_orbit
+	ship_orbit_angle = 0.0
+	queue_redraw()
+
+
 func set_planet(new_planet: PlanetData) -> void:
 	planet = new_planet
 
@@ -113,6 +128,77 @@ func _draw() -> void:
 		rotation_angle
 	)
 
+	# Vaisseau du joueur en orbite autour de la planète.
+	_draw_player_ship(radius)
+
+func _draw_player_ship(radius: float) -> void:
+	if not ship_in_orbit:
+		return
+
+	var orbit_radius: float = max(
+		radius + 60.0,
+		radius * 1.5
+	)
+
+	var radial := Vector2(
+		cos(ship_orbit_angle),
+		sin(ship_orbit_angle)
+	)
+
+	var ship_position := radial * orbit_radius
+	var direction := Vector2(-radial.y, radial.x)
+
+	# Trajectoire de l'orbite.
+	draw_arc(
+		Vector2.ZERO,
+		orbit_radius,
+		0.0,
+		TAU,
+		64,
+		Color(0.5, 0.8, 1.0, 0.35),
+		1.0
+	)
+
+	var perpendicular := Vector2(-direction.y, direction.x)
+
+	var nose := ship_position + direction * 14.0
+	var rear_left := (
+		ship_position
+		- direction * 9.0
+		+ perpendicular * 7.0
+	)
+	var rear_right := (
+		ship_position
+		- direction * 9.0
+		- perpendicular * 7.0
+	)
+
+	draw_colored_polygon(
+		PackedVector2Array([
+			nose,
+			rear_left,
+			rear_right
+		]),
+		Color(0.8, 0.95, 1.0)
+	)
+
+	draw_polyline(
+		PackedVector2Array([
+			nose,
+			rear_left,
+			rear_right,
+			nose
+		]),
+		Color.WHITE,
+		2.0
+	)
+
+	draw_circle(
+		ship_position,
+		18.0,
+		Color(0.5, 0.8, 1.0, 0.25)
+	)
+
 func _get_planet_color(planet_type: String) -> Color:
 	match planet_type:
 		"rocky":
@@ -188,6 +274,13 @@ func _process(delta: float) -> void:
 				"rotation_angle",
 				rotation_angle
 			)
+
+	# L'orbite du vaisseau tourne en permanence.
+	if ship_in_orbit:
+		ship_orbit_angle = fmod(
+			ship_orbit_angle + ship_orbit_speed * delta,
+			TAU
+		)
 
 	queue_redraw()
 
