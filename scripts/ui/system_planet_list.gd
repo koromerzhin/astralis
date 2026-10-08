@@ -16,6 +16,13 @@ func _init() -> void:
 	theme = null
 	focus_mode = FOCUS_NONE
 	mouse_filter = Control.MOUSE_FILTER_STOP
+
+	# Colonne gauche, sous StarInfo (bottom 320) et le bouton de nav
+	# (332..372 quand StarInfo est visible).
+	position = Vector2(20.0, 384.0)
+	size = Vector2(350.0, 300.0)
+	custom_minimum_size = Vector2(350.0, 160.0)
+
 	var style := StyleBoxFlat.new()
 	style.bg_color = PANEL_COLOR
 	style.border_color = BORDER_COLOR
