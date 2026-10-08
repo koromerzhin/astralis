@@ -8009,6 +8009,26 @@ func save_to_dict() -> Dictionary:
 				planet.to_dict()
 			)
 
+		var belts_data: Array = []
+
+		for belt in system.get("asteroid_belts", []):
+			if belt == null:
+				continue
+
+			belts_data.append(
+				belt.to_dict()
+			)
+
+		var comets_data: Array = []
+
+		for comet in system.get("comets", []):
+			if comet == null:
+				continue
+
+			comets_data.append(
+				comet.to_dict()
+			)
+
 		systems_data.append(
 			{
 				"id": system_id,
@@ -8028,7 +8048,9 @@ func save_to_dict() -> Dictionary:
 					"position",
 					Vector2.ZERO
 				),
-				"planets": planets_data
+				"planets": planets_data,
+				"asteroid_belts": belts_data,
+				"comets": comets_data
 			}
 		)
 
@@ -8167,6 +8189,36 @@ func load_from_dict(data: Dictionary) -> void:
 				] = system_id
 
 		system["planets"] = planets
+
+		# Astéroïdes et comètes : restaurés depuis la sauvegarde,
+		# ou régénérés pour les sauvegardes anciennes.
+		var belts: Array[AsteroidBeltData] = []
+		var comets: Array[CometData] = []
+
+		if system_data.has("asteroid_belts"):
+			for belt_data in system_data["asteroid_belts"]:
+				var belt := AsteroidBeltData.new()
+				belt.from_dict(belt_data)
+				belts.append(belt)
+
+			for comet_data in system_data["comets"]:
+				var comet := CometData.new()
+				comet.from_dict(comet_data)
+				comets.append(comet)
+		else:
+			var regenerated: Dictionary = (
+				_system_generator.generate_asteroids_and_comets(
+					int(system_data["seed"]),
+					planets,
+					system_id
+				)
+			)
+
+			belts = regenerated["asteroid_belts"]
+			comets = regenerated["comets"]
+
+		system["asteroid_belts"] = belts
+		system["comets"] = comets
 
 		_system_planets[system_id] = planets
 		_systems[system_id] = system

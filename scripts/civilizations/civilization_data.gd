@@ -31,6 +31,10 @@ var expansion_budget: float = 0.0
 var known_civilization_system_ids: Dictionary = {}
 var trade_network_strength: float = 0.0
 
+# Ressources extraites des ceintures d'astéroïdes et des comètes.
+# Consommées lentement par l'économie chaque année.
+var asteroid_minerals: float = 0.0
+
 
 func initialize(
 	civilization_id: int,
@@ -305,6 +309,24 @@ func simulate_economy_and_technology(
 	economy += (
 		economy_target - economy
 	) * 0.01
+
+	# Conversion des ressources extraites (astéroïdes, comètes)
+	# en économie et technologie, chaque année.
+	if asteroid_minerals > 0.0:
+		var consumed: float = minf(
+			asteroid_minerals,
+			maxf(2.0, asteroid_minerals * 0.05)
+		)
+
+		asteroid_minerals -= consumed
+
+		economy = clamp(
+			economy + consumed * 0.05,
+			1.0,
+			100.0
+		)
+
+		technology += consumed * 0.01
 
 	var technology_growth: float = (
 		(economy / 100.0) * 0.15
@@ -1942,7 +1964,8 @@ func to_dict() -> Dictionary:
 		"colony_income": colony_income,
 		"expansion_budget": expansion_budget,
 		"known_civilization_system_ids": known_systems_data,
-		"trade_network_strength": trade_network_strength
+		"trade_network_strength": trade_network_strength,
+		"asteroid_minerals": asteroid_minerals
 	}
 
 
@@ -1996,6 +2019,9 @@ func from_dict(data: Dictionary) -> void:
 	colony_income = data["colony_income"]
 	expansion_budget = data["expansion_budget"]
 	trade_network_strength = data["trade_network_strength"]
+	asteroid_minerals = float(
+		data.get("asteroid_minerals", 0.0)
+	)
 
 	colonies.clear()
 

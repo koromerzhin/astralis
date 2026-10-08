@@ -1,6 +1,8 @@
 extends Panel
 
 signal planet_focused(planet: PlanetData)
+signal belt_focused(belt: AsteroidBeltData)
+signal comet_focused(comet: CometData)
 
 const PANEL_COLOR := Color(0.05, 0.1, 0.2, 0.85)
 const BORDER_COLOR := Color(0.3, 0.5, 0.8, 0.6)
@@ -53,7 +55,7 @@ func _init() -> void:
 
 	var title := Label.new()
 	title.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	title.text = "PLANÈTES"
+	title.text = "SYSTÈME"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title.add_theme_color_override("font_color", Color.WHITE)
 	vbox.add_child(title)
@@ -96,7 +98,11 @@ func highlight(planet: PlanetData) -> void:
 			btn.modulate = Color(1, 1, 1, 1)
 
 
-func rebuild(planets: Array[PlanetData]) -> void:
+func rebuild(
+	planets: Array[PlanetData],
+	belts: Array = [],
+	comets: Array = []
+) -> void:
 	for item in items:
 		item["hbox"].queue_free()
 	items.clear()
@@ -150,15 +156,140 @@ func rebuild(planets: Array[PlanetData]) -> void:
 			"hbox": hbox
 		})
 
+	# Ceintures d'astéroïdes, après les planètes.
+	var belt_list := belts.duplicate()
+	belt_list.sort_custom(func(a: AsteroidBeltData, b: AsteroidBeltData) -> bool:
+		return a.global_id < b.global_id
+	)
+
+	for belt in belt_list:
+		items.append(
+			_add_body_row(
+				"Ceinture #%d" % belt.id,
+				belt,
+				_focus_belt_from_list.bind(belt)
+			)
+		)
+
+	# Comètes, en fin de liste.
+	var comet_list := comets.duplicate()
+	comet_list.sort_custom(func(a: CometData, b: CometData) -> bool:
+		return a.global_id < b.global_id
+	)
+
+	for comet in comet_list:
+		items.append(
+			_add_body_row(
+				"Comète #%d" % comet.id,
+				comet,
+				_focus_comet_from_list.bind(comet)
+			)
+		)
+
 	refresh_statuses()
+
+
+func _focus_belt_from_list(belt: AsteroidBeltData) -> void:
+	belt_focused.emit(belt)
+
+	if system_view != null:
+		system_view.focus_belt(belt)
+
+
+func _focus_comet_from_list(comet: CometData) -> void:
+	comet_focused.emit(comet)
+
+	if system_view != null:
+		system_view.focus_comet(comet)
+
+
+func _add_body_row(
+	label: String,
+	body: Object,
+	on_pressed: Callable
+) -> Dictionary:
+	var hbox := HBoxContainer.new()
+	hbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hbox.add_theme_constant_override("separation", 4)
+	item_container.add_child(hbox)
+
+	var btn := Button.new()
+	btn.mouse_filter = Control.MOUSE_FILTER_PASS
+	btn.focus_mode = FOCUS_NONE
+	btn.text = label
+	btn.flat = true
+	btn.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	btn.add_theme_color_override(
+		"font_color",
+		Color(1.0, 0.85, 0.6, 1.0)
+	)
+	btn.pressed.connect(on_pressed)
+	hbox.add_child(btn)
+
+	var status := Label.new()
+	status.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	status.custom_minimum_size = Vector2(110, 0)
+	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	status.add_theme_color_override(
+		"font_color",
+		Color(1.0, 0.8, 0.5, 0.9)
+	)
+	hbox.add_child(status)
+
+	return {
+		"belt": body if body is AsteroidBeltData else null,
+		"comet": body if body is CometData else null,
+		"button": btn,
+		"status": status,
+		"ship_tag": null,
+		"hbox": hbox
+	}
 
 
 func refresh_statuses() -> void:
 	for item in items:
-		var planet: PlanetData = item.get("planet")
 		var status: Label = item.get("status")
 		var ship_tag: Label = item.get("ship_tag")
-		if planet == null or status == null:
+		if status == null:
+			continue
+
+		var planet: PlanetData = item.get("planet")
+		var belt: AsteroidBeltData = item.get("belt")
+		var comet: CometData = item.get("comet")
+
+		if belt != null:
+			if belt.is_depleted():
+				status.text = "ÉPUISÉE"
+				status.add_theme_color_override(
+					"font_color",
+					Color(0.7, 0.5, 0.4, 0.9)
+				)
+			else:
+				status.text = "MINÉRAUX : %d" % int(belt.minerals)
+				status.add_theme_color_override(
+					"font_color",
+					Color(1.0, 0.8, 0.5, 0.9)
+				)
+			continue
+
+		if comet != null:
+			status.text = (
+				"EXTRAIT"
+				if comet.is_depleted()
+				else "EN ORBITE"
+			)
+			status.add_theme_color_override(
+				"font_color",
+				Color(
+					0.7, 0.7, 0.7, 0.9
+				)
+				if comet.is_depleted()
+				else Color(0.7, 0.9, 1.0, 0.9)
+			)
+			continue
+
+		if planet == null:
 			continue
 
 		if ship_tag != null:

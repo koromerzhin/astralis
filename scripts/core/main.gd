@@ -27,6 +27,10 @@ var enter_system_button: Button
 var nav_button: Button
 var interaction_button: Button
 var view_planet_button: Button
+var exploit_belt_button: Button
+var extract_comet_button: Button
+var selected_belt: AsteroidBeltData = null
+var selected_comet: CometData = null
 var diplomacy_trade_button: Button
 var diplomacy_alliance_button: Button
 var diplomacy_war_button: Button
@@ -62,6 +66,12 @@ func _ready() -> void:
 	# Vue système.
 	$System.planet_selected.connect(
 		_on_planet_selected
+	)
+	$System.belt_selected.connect(
+		_on_belt_selected
+	)
+	$System.comet_selected.connect(
+		_on_comet_selected
 	)
 
 	# Simulation.
@@ -221,6 +231,42 @@ func _ready() -> void:
 		view_planet_button
 	)
 
+	# Bouton d'exploitation d'une ceinture d'astéroïdes.
+	exploit_belt_button = Button.new()
+	exploit_belt_button.text = "Exploiter la ceinture"
+	exploit_belt_button.visible = false
+	exploit_belt_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	exploit_belt_button.pressed.connect(
+		_on_exploit_belt_button_pressed
+	)
+
+	planet_info_container.add_child(
+		exploit_belt_button
+	)
+
+	# Bouton d'extraction sur une comète.
+	extract_comet_button = Button.new()
+	extract_comet_button.text = (
+		"Extraire les ressources volatiles"
+	)
+	extract_comet_button.visible = false
+	extract_comet_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	extract_comet_button.pressed.connect(
+		_on_extract_comet_button_pressed
+	)
+
+	planet_info_container.add_child(
+		extract_comet_button
+	)
+
 	# --------------------------------------------------
 	# PlanetViewInfo
 	# --------------------------------------------------
@@ -337,6 +383,8 @@ func _ready() -> void:
 		diplomacy_alliance_button,
 		diplomacy_war_button,
 		view_planet_button,
+		exploit_belt_button,
+		extract_comet_button,
 		explore_planet_button,
 		orbit_planet_button,
 		study_planet_button,
@@ -360,6 +408,12 @@ func _ready() -> void:
 	planet_list.visible = false
 	if not $System.planet_selected.is_connected(planet_list.highlight):
 		$System.planet_selected.connect(planet_list.highlight)
+
+	if planet_list.has_signal("belt_focused"):
+		planet_list.connect("belt_focused", _on_belt_selected)
+
+	if planet_list.has_signal("comet_focused"):
+		planet_list.connect("comet_focused", _on_comet_selected)
 
 	main_menu = MainMenu.new()
 	main_menu.new_game_requested.connect(_on_menu_new_game)
@@ -496,6 +550,8 @@ func _on_star_selected(star: Dictionary) -> void:
 
 func _on_planet_selected(planet: PlanetData) -> void:
 	current_planet = planet
+	selected_belt = null
+	selected_comet = null
 
 	_set_info_text(
 		$UI/PlanetInfo,
@@ -504,9 +560,195 @@ func _on_planet_selected(planet: PlanetData) -> void:
 
 	$UI/PlanetInfo.visible = true
 
+	exploit_belt_button.visible = false
+	extract_comet_button.visible = false
+
 	view_planet_button.visible = (
 		planet.type != "gas_giant"
 	)
+
+
+func _on_belt_selected(belt: AsteroidBeltData) -> void:
+	selected_belt = belt
+	selected_comet = null
+	current_planet = null
+
+	_set_info_text(
+		$UI/PlanetInfo,
+		_build_belt_info_text(belt)
+	)
+
+	$UI/PlanetInfo.visible = true
+
+	view_planet_button.visible = false
+	extract_comet_button.visible = false
+
+	exploit_belt_button.visible = true
+	exploit_belt_button.disabled = belt.is_depleted()
+	exploit_belt_button.text = (
+		"Ceinture épuisée"
+		if belt.is_depleted()
+		else "Exploiter la ceinture"
+	)
+
+
+func _on_comet_selected(comet: CometData) -> void:
+	selected_comet = comet
+	selected_belt = null
+	current_planet = null
+
+	_set_info_text(
+		$UI/PlanetInfo,
+		_build_comet_info_text(comet)
+	)
+
+	$UI/PlanetInfo.visible = true
+
+	view_planet_button.visible = false
+	exploit_belt_button.visible = false
+
+	extract_comet_button.visible = true
+	extract_comet_button.disabled = comet.is_depleted()
+	extract_comet_button.text = (
+		"Extraction effectuée"
+		if comet.is_depleted()
+		else "Extraire les ressources volatiles"
+	)
+
+
+func _build_belt_info_text(belt: AsteroidBeltData) -> String:
+	var info := (
+		"CEINTURE D'ASTÉROÏDES #" + str(belt.id) + "\n\n"
+	)
+
+	info += "Distance orbitale : "
+	info += str(snapped(belt.orbit_distance, 1.0))
+	info += "\n"
+
+	info += "Largeur : "
+	info += str(snapped(belt.width, 1.0))
+	info += "\n"
+
+	info += "Astéroïdes : "
+	info += str(belt.rock_count)
+	info += "\n"
+
+	info += "Minéraux : "
+	info += str(snapped(belt.minerals, 0.1))
+	info += " / "
+	info += str(snapped(belt.minerals_initial, 0.1))
+
+	info += "\n\nLes minerais extraits alimentent la réserve "
+	info += "de votre civilisation."
+
+	if belt.is_depleted():
+		info += "\n\nLa ceinture est épuisée."
+
+	return info
+
+
+func _build_comet_info_text(comet: CometData) -> String:
+	var info := "COMÈTE #" + str(comet.id) + "\n\n"
+
+	info += "Périhélie : "
+	info += str(snapped(comet.get_perihelion(), 1.0))
+	info += "\n"
+
+	info += "Aphélie : "
+	info += str(
+		snapped(comet.semi_major * (1.0 + comet.eccentricity), 1.0)
+	)
+	info += "\n"
+
+	info += "Excentricité : "
+	info += str(snapped(comet.eccentricity, 0.01))
+	info += "\n"
+
+	info += "Taille : "
+	info += str(snapped(comet.size, 0.1))
+
+	info += "\n\nRessources volatiles : "
+
+	info += (
+		"épuisées"
+		if comet.is_depleted()
+		else "disponibles"
+	)
+
+	if comet.is_depleted():
+		info += "\n\nL'extraction a déjà été effectuée."
+
+	return info
+
+
+func _on_exploit_belt_button_pressed() -> void:
+	if selected_belt == null:
+		return
+
+	if selected_belt.system_id != player.current_system_id:
+		return
+
+	var civilization: CivilizationData = (
+		simulation_manager.get_civilization(
+			player.civilization_id
+		)
+	)
+
+	if civilization == null:
+		return
+
+	var extracted: float = selected_belt.extract(60.0)
+
+	if extracted <= 0.0:
+		_on_belt_selected(selected_belt)
+		return
+
+	civilization.asteroid_minerals += extracted
+
+	_on_belt_selected(selected_belt)
+
+	if hud != null:
+		hud.add_event(
+			"Extraction : "
+			+ str(int(extracted))
+			+ " minerais d'astéroïdes",
+			true
+		)
+
+
+func _on_extract_comet_button_pressed() -> void:
+	if selected_comet == null:
+		return
+
+	if selected_comet.is_depleted():
+		return
+
+	if selected_comet.system_id != player.current_system_id:
+		return
+
+	var civilization: CivilizationData = (
+		simulation_manager.get_civilization(
+			player.civilization_id
+		)
+	)
+
+	if civilization == null:
+		return
+
+	var extracted: float = 80.0
+
+	civilization.asteroid_minerals += extracted
+	selected_comet.extracted = true
+
+	_on_comet_selected(selected_comet)
+
+	if hud != null:
+		hud.add_event(
+			"Extraction comète : "
+			+ str(int(extracted))
+			+ " de ressources volatiles",
+			true
+		)
 
 
 func _build_planet_info_text(
@@ -665,7 +907,11 @@ func _show_system() -> void:
 
 	if planet_list != null:
 		planet_list.visible = true
-		planet_list.rebuild($System.planets)
+		planet_list.rebuild(
+			$System.planets,
+			$System.asteroid_belts,
+			$System.comets
+		)
 
 	if encountered_civilization != null:
 		interaction_button.visible = true
@@ -723,6 +969,34 @@ func _on_year_changed(year: int) -> void:
 	)
 
 	if current_planet == null:
+		if (
+			$System.visible
+			and $UI/PlanetInfo.visible
+			and selected_belt != null
+		):
+			_set_info_text(
+				$UI/PlanetInfo,
+				_build_belt_info_text(selected_belt)
+			)
+
+			exploit_belt_button.disabled = (
+				selected_belt.is_depleted()
+			)
+
+		elif (
+			$System.visible
+			and $UI/PlanetInfo.visible
+			and selected_comet != null
+		):
+			_set_info_text(
+				$UI/PlanetInfo,
+				_build_comet_info_text(selected_comet)
+			)
+
+			extract_comet_button.disabled = (
+				selected_comet.is_depleted()
+			)
+
 		return
 
 	if $System.visible and planet_list != null:
