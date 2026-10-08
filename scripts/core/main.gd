@@ -31,6 +31,7 @@ var diplomacy_trade_button: Button
 var diplomacy_alliance_button: Button
 var diplomacy_war_button: Button
 var hud: Hud
+var planet_list: Panel = null
 
 @onready var explore_planet_button: Button = (
 	$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ButtonArea/ExploreButton
@@ -334,6 +335,14 @@ func _ready() -> void:
 	hud.log_toggled.connect(_resize_info_panels)
 	get_viewport().size_changed.connect(_resize_info_panels)
 
+	planet_list = preload("res://scripts/ui/system_planet_list.gd").new()
+	if planet_list.has_method("setup"):
+		planet_list.call("setup", $System)
+	$UI.add_child(planet_list)
+	planet_list.visible = false
+	if not $System.planet_selected.is_connected(planet_list.highlight):
+		$System.planet_selected.connect(planet_list.highlight)
+
 	main_menu = MainMenu.new()
 	main_menu.new_game_requested.connect(_on_menu_new_game)
 	main_menu.continue_requested.connect(_on_menu_continue)
@@ -622,6 +631,10 @@ func _show_system() -> void:
 
 	$System.set_system(current_system)
 
+	if planet_list != null:
+		planet_list.visible = true
+		planet_list.rebuild($System.planets)
+
 	if encountered_civilization != null:
 		interaction_button.visible = true
 
@@ -631,6 +644,9 @@ func _show_galaxy() -> void:
 
 	$System.visible = false
 	$System/Camera2D.enabled = false
+
+	if planet_list != null:
+		planet_list.visible = false
 
 	$Galaxy.visible = true
 	$Galaxy/Camera2D.enabled = true
@@ -676,6 +692,9 @@ func _on_year_changed(year: int) -> void:
 
 	if current_planet == null:
 		return
+
+	if $System.visible and planet_list != null:
+		planet_list.refresh_statuses()
 
 	if $Planet.visible:
 		_set_info_text(
@@ -1315,6 +1334,9 @@ func _on_view_planet_button_pressed() -> void:
 	nav_button.visible = true
 	nav_button.text = "Retour système"
 
+	if planet_list != null:
+		planet_list.visible = false
+
 	_update_nav_button_position()
 
 	$Galaxy.visible = false
@@ -1601,6 +1623,9 @@ func _on_explore_planet_button_pressed() -> void:
 		and planet.colony_owner_id == -1
 	)
 
+	if $System.visible and planet_list != null:
+		planet_list.refresh_statuses()
+
 func _build_exploration_text(
 	planet: PlanetData
 ) -> String:
@@ -1670,6 +1695,9 @@ func _on_study_planet_button_pressed() -> void:
 
 	study_planet_button.text = "Étude terminée"
 	study_planet_button.disabled = true
+
+	if $System.visible and planet_list != null:
+		planet_list.refresh_statuses()
 
 func _build_study_text(
 	planet: PlanetData

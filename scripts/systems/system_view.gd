@@ -11,6 +11,7 @@ var simulation_manager: SimulationManager
 @export var max_zoom := 3.0
 
 @onready var camera: Camera2D = $Camera2D
+var focused_planet: PlanetData = null
 
 
 func set_system(new_system: Dictionary) -> void:
@@ -19,10 +20,25 @@ func set_system(new_system: Dictionary) -> void:
 
 	camera.position = Vector2.ZERO
 	camera.zoom = Vector2.ONE
+	focused_planet = null
 
 	_initialize_planets()
 
 	queue_redraw()
+
+
+func get_planet_position(planet: PlanetData) -> Vector2:
+	var angle: float = planet.get_meta("angle", 0.0)
+	return Vector2(cos(angle), sin(angle)) * planet.orbit_distance
+
+
+func focus_planet(planet: PlanetData, target_zoom := 1.6) -> void:
+	focused_planet = planet
+	camera.position = get_planet_position(planet)
+	var z: float = clampf(target_zoom, min_zoom, max_zoom)
+	camera.zoom = Vector2(z, z)
+	queue_redraw()
+
 
 func _initialize_planets() -> void:
 	for planet in planets:
@@ -107,6 +123,18 @@ func _process(delta: float) -> void:
 		or simulation_manager.simulation_running
 	)
 
+	if focused_planet != null:
+		if (
+			Input.is_key_pressed(KEY_Z)
+			or Input.is_key_pressed(KEY_S)
+			or Input.is_key_pressed(KEY_Q)
+			or Input.is_key_pressed(KEY_D)
+			or Input.is_key_pressed(KEY_A)
+		):
+			focused_planet = null
+		else:
+			camera.position = get_planet_position(focused_planet)
+
 	if animated:
 		for planet in planets:
 			var angle: float = planet.get_meta("angle")
@@ -160,10 +188,7 @@ func _draw() -> void:
 		)
 
 		# Position de la planète
-		var planet_position: Vector2 = Vector2(
-			cos(angle) * orbit_distance,
-			sin(angle) * orbit_distance
-		)
+		var planet_position: Vector2 = get_planet_position(planet)
 
 		# Planète
 		draw_circle(
@@ -269,10 +294,7 @@ func _select_planet_at_position(mouse_position: Vector2) -> void:
 		var orbit_distance: float = planet.orbit_distance
 		var angle: float = planet.get_meta("angle")
 
-		var planet_position: Vector2 = Vector2(
-			cos(angle) * orbit_distance,
-			sin(angle) * orbit_distance
-		)
+		var planet_position: Vector2 = get_planet_position(planet)
 
 		var distance: float = mouse_position.distance_to(
 			planet_position

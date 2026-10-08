@@ -443,3 +443,11 @@ func from_dict(data: Dictionary) -> void:
 	is_studied = data.get("is_studied", false)
 	civilization = null
 	colony = null
+
+
+func is_known() -> bool:
+	return is_explored or colony != null
+
+
+func is_study_complete() -> bool:
+	return is_studied or colony != null
