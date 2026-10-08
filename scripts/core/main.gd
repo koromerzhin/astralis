@@ -900,6 +900,8 @@ func _show_system() -> void:
 		)
 	)
 
+	_register_encounter(encountered_civilization)
+
 	current_planet = null
 
 	$System.set_system(current_system)
@@ -1371,6 +1373,8 @@ func _on_player_arrived() -> void:
 		)
 	)
 
+	_register_encounter(encountered_civilization)
+
 	print(
 		"Arrivée dans le système #",
 		arrived_system_id
@@ -1462,6 +1466,29 @@ func _find_civilization_in_system(
 		return civilization
 
 	return null
+
+
+# Une détection directe du vaisseau vaut contact : la
+# civilisation devient donc connue du joueur, et ses événements
+# deviennent visibles dans le journal.
+func _register_encounter(
+	civilization: CivilizationData
+) -> void:
+	if civilization == null:
+		return
+
+	var player_civilization: CivilizationData = (
+		simulation_manager.get_civilization(
+			player.civilization_id
+		)
+	)
+
+	if player_civilization == null:
+		return
+
+	player_civilization.discover_civilization(
+		civilization.global_id
+	)
 
 func _on_interaction_button_pressed() -> void:
 	if encountered_civilization == null:

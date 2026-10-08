@@ -11,6 +11,10 @@ const PLANET_SPATIAL_CELL_SIZE := 400.0
 const COLONIZATION_COOLDOWN := 5
 const SYSTEM_SPATIAL_CELL_SIZE := 400.0
 
+# Libellé utilisé dans le journal pour une civilisation
+# que le joueur n'a jamais rencontrée.
+const UNKNOWN_CIVILIZATION_LABEL := "Civilisation inconnue"
+
 @export var years_per_second: float = 1.0
 @export var simulation_running: bool = true
 
@@ -2651,9 +2655,114 @@ func _log_event(
 		civilization_ids
 	)
 
-	print(event_text)
+	var visible_text: String = (
+		_filter_event_text_for_player(
+			event_text,
+			civilization_ids
+		)
+	)
 
-	event_logged.emit(event_text, involves_player)
+	# Événement sans aucun lien avec une civilisation rencontrée.
+	if visible_text.is_empty():
+		return
+
+	print(visible_text)
+
+	event_logged.emit(visible_text, involves_player)
+
+
+# Le journal du joueur ne doit rien révéler sur une civilisation
+# qu'il n'a jamais rencontrée : ces événements sont masqués, et
+# les civilisations inconnues citées à côté d'une connaissance
+# sont anonymisées.
+func _filter_event_text_for_player(
+	event_text: String,
+	civilization_ids: Array
+) -> String:
+	if civilization_ids.is_empty():
+		return event_text
+
+	var player_civilization: CivilizationData = (
+		get_civilization(player_civilization_id)
+	)
+
+	if player_civilization == null:
+		return ""
+
+	var known_civilizations: Array[CivilizationData] = []
+	var unknown_civilizations: Array[CivilizationData] = []
+
+	for civilization_id in civilization_ids:
+		var civilization: CivilizationData = (
+			get_civilization(civilization_id)
+		)
+
+		if civilization == null:
+			continue
+
+		var is_known: bool = (
+			civilization_id == player_civilization_id
+			or player_civilization.knows_civilization(
+				civilization_id
+			)
+		)
+
+		if is_known:
+			known_civilizations.append(civilization)
+		else:
+			unknown_civilizations.append(civilization)
+
+	# Aucun lien avec le joueur ou ses contacts : on n'affiche rien.
+	if known_civilizations.is_empty():
+		return ""
+
+	# Les civilisations générées peuvent partager le même nom :
+	# on ne touche jamais à un nom déjà connu du joueur.
+	var known_names: Array[String] = []
+
+	for civilization in known_civilizations:
+		if not civilization.name.is_empty():
+			known_names.append(civilization.name)
+
+	# Du plus long nom au plus courte, pour éviter qu'un nom
+	# en soit le préfixe d'un autre.
+	unknown_civilizations.sort_custom(
+		func(a: CivilizationData, b: CivilizationData) -> bool:
+			return a.name.length() > b.name.length()
+	)
+
+	var filtered_text: String = event_text
+
+	for civilization in unknown_civilizations:
+		if civilization.name.is_empty():
+			continue
+
+		# Homonyme d'une civilisation connue : le nom affiché
+		# est déjà connu du joueur, aucune donnée neuve.
+		if known_names.has(civilization.name):
+			continue
+
+		# Anonymisation impossible sans dégrader un nom connu :
+		# on masque l'événement plutôt que de révéler l'inconnu.
+		var touches_known_name: bool = false
+
+		for known_name in known_names:
+			if (
+				known_name.contains(civilization.name)
+				or civilization.name.contains(known_name)
+			):
+				touches_known_name = true
+				break
+
+		if touches_known_name:
+			return ""
+
+		filtered_text = filtered_text.replace(
+			civilization.name,
+			UNKNOWN_CIVILIZATION_LABEL
+		)
+
+	return filtered_text
 
 func _find_system_containing_civilization(
 	civilization_id: int
