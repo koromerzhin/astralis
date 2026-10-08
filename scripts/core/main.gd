@@ -909,6 +909,17 @@ func _on_nav_button_pressed() -> void:
 
 	elif $System.visible:
 		_show_galaxy()
+		_restore_star_info(current_star_id)
+
+
+func _restore_star_info(star_id: int) -> void:
+	if star_id < 0:
+		return
+
+	for star in stars:
+		if int(star["id"]) == star_id:
+			_on_star_selected(star)
+			return
 
 
 func _on_travel_button_pressed() -> void:
