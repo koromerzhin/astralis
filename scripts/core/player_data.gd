@@ -5,6 +5,10 @@ var civilization_id: int = -1
 var current_system_id: int = -1
 var target_system_id: int = -1
 
+# global_id de la planète où se trouve le vaisseau,
+# -1 si le vaisseau est en orbite autour de l'étoile.
+var current_planet_id: int = -1
+
 var position: Vector2 = Vector2.ZERO
 var current_system_position: Vector2 = Vector2.ZERO
 var travel_start_position: Vector2 = Vector2.ZERO
@@ -52,3 +56,45 @@ func update_travel(delta: float) -> bool:
 	)
 
 	return false
+
+
+func to_dict() -> Dictionary:
+	return {
+		"civilization_id": civilization_id,
+		"current_system_id": current_system_id,
+		"target_system_id": target_system_id,
+		"current_planet_id": current_planet_id,
+		"position": {"x": position.x, "y": position.y},
+		"current_system_position": {"x": current_system_position.x, "y": current_system_position.y},
+		"travel_start_position": {"x": travel_start_position.x, "y": travel_start_position.y},
+		"travel_target_position": {"x": travel_target_position.x, "y": travel_target_position.y},
+		"traveling": traveling,
+		"travel_progress": travel_progress,
+		"travel_duration": travel_duration
+	}
+
+
+func from_dict(data: Dictionary) -> void:
+	civilization_id = data["civilization_id"]
+	current_system_id = data["current_system_id"]
+	target_system_id = data["target_system_id"]
+	current_planet_id = int(data.get("current_planet_id", -1))
+	position = _vec(data, "position")
+	current_system_position = _vec(data, "current_system_position")
+	travel_start_position = _vec(data, "travel_start_position")
+	travel_target_position = _vec(data, "travel_target_position")
+	traveling = data["traveling"]
+	travel_progress = data["travel_progress"]
+	travel_duration = data["travel_duration"]
+
+
+func _vec(data: Dictionary, key: String) -> Vector2:
+	var value: Dictionary = data[key]
+
+	if value is Dictionary and value.has("x") and value.has("y"):
+		return Vector2(
+			value["x"],
+			value["y"]
+		)
+
+	return Vector2.ZERO

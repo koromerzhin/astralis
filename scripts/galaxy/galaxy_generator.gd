@@ -47,7 +47,15 @@ func _generate_radius(rng: RandomNumberGenerator) -> float:
 	if value < 0.25:
 		return rng.randf_range(0.0, CORE_RADIUS)
 
-	return sqrt(value) * GALAXY_RADIUS
+	# Étoiles des bras : répartition continue entre le bulbe
+	# et le bord du disque (densité surfacique constante).
+	var t := (value - 0.25) / 0.75
+
+	return lerp(
+		CORE_RADIUS,
+		GALAXY_RADIUS,
+		sqrt(t)
+	)
 
 
 func _generate_angle(rng: RandomNumberGenerator, radius: float) -> float:

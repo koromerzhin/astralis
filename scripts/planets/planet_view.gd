@@ -2,12 +2,28 @@ extends Node2D
 
 
 var planet: PlanetData
+var simulation_manager: SimulationManager
 @export var move_speed := 300.0
 @export var zoom_speed := 0.1
 @export var min_zoom := 0.5
 @export var max_zoom := 4.0
 
 @onready var camera: Camera2D = $Camera2D
+
+# Le vaisseau du joueur tourne autour de la planète lorsqu'il est en orbite.
+var ship_in_orbit := false
+var ship_orbit_angle := 0.0
+@export var ship_orbit_speed := 1.6
+
+
+func set_ship_in_orbit(in_orbit: bool) -> void:
+	if ship_in_orbit == in_orbit:
+		return
+
+	ship_in_orbit = in_orbit
+	ship_orbit_angle = 0.0
+	queue_redraw()
+
 
 func set_planet(new_planet: PlanetData) -> void:
 	planet = new_planet
@@ -112,6 +128,46 @@ func _draw() -> void:
 		rotation_angle
 	)
 
+	# Vaisseau du joueur en orbite autour de la planète.
+	_draw_player_ship(radius)
+
+func _draw_player_ship(radius: float) -> void:
+	if not ship_in_orbit:
+		return
+
+	var orbit_radius: float = max(
+		radius + 60.0,
+		radius * 1.5
+	)
+
+	var radial := Vector2(
+		cos(ship_orbit_angle),
+		sin(ship_orbit_angle)
+	)
+
+	var ship_position := radial * orbit_radius
+	var direction := Vector2(-radial.y, radial.x)
+
+	# Trajectoire de l'orbite.
+	draw_arc(
+		Vector2.ZERO,
+		orbit_radius,
+		0.0,
+		TAU,
+		64,
+		Color(0.5, 0.8, 1.0, 0.35),
+		1.0
+	)
+
+	ShipDrawing.draw_ship(
+		self,
+		ship_position,
+		direction,
+		0.9,
+		8.0,
+		18.0
+	)
+
 func _get_planet_color(planet_type: String) -> Color:
 	match planet_type:
 		"rocky":
@@ -133,6 +189,9 @@ func _get_planet_color(planet_type: String) -> Color:
 			return Color.WHITE
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
+
 	var direction := Vector2.ZERO
 
 	if Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W):
@@ -156,27 +215,40 @@ func _process(delta: float) -> void:
 		)
 
 	if planet != null:
-		var rotation_angle: float = (
-			planet.get_meta(
+		var animated: bool = (
+			simulation_manager == null
+			or simulation_manager.simulation_running
+		)
+
+		if animated:
+			var rotation_angle: float = (
+				planet.get_meta(
+					"rotation_angle",
+					0.0
+				)
+			)
+
+			var rotation_speed: float = (
+				planet.get_meta(
+					"rotation_speed",
+					0.15
+				)
+			)
+
+			rotation_angle += (
+				rotation_speed * delta
+			)
+
+			planet.set_meta(
 				"rotation_angle",
-				0.0
+				rotation_angle
 			)
-		)
 
-		var rotation_speed: float = (
-			planet.get_meta(
-				"rotation_speed",
-				0.15
-			)
-		)
-
-		rotation_angle += (
-			rotation_speed * delta
-		)
-
-		planet.set_meta(
-			"rotation_angle",
-			rotation_angle
+	# L'orbite du vaisseau tourne en permanence.
+	if ship_in_orbit:
+		ship_orbit_angle = fmod(
+			ship_orbit_angle + ship_orbit_speed * delta,
+			TAU
 		)
 
 	queue_redraw()
@@ -197,7 +269,7 @@ func _zoom(factor: float) -> void:
 
 	queue_redraw()
 
-func _input(event: InputEvent) -> void:
+func _unhandled_input(event: InputEvent) -> void:
 	if not visible:
 		return
 
