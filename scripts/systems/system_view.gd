@@ -13,6 +13,22 @@ var simulation_manager: SimulationManager
 @onready var camera: Camera2D = $Camera2D
 var focused_planet: PlanetData = null
 
+# global_id de la planète où se trouve le vaisseau joueur, -1 = en orbite.
+var ship_planet_id: int = -1
+
+# Angle courant de l'orbite du vaisseau (planète ou étoile).
+var ship_orbit_angle: float = 0.0
+@export var ship_orbit_speed := 2.2
+
+
+func set_ship_planet_id(planet_id: int) -> void:
+	if ship_planet_id == planet_id:
+		return
+
+	ship_planet_id = planet_id
+	ship_orbit_angle = 0.0
+	queue_redraw()
+
 
 func set_system(new_system: Dictionary) -> void:
 	system = new_system
@@ -162,7 +178,15 @@ func _process(delta: float) -> void:
 
 				moon["angle"] = moon_angle
 
+	# L'orbite du vaisseau tourne en permanence, même si la
+	# simulation est en pause : le vaisseau bouge dès qu'il est en orbite.
+	ship_orbit_angle = fmod(
+		ship_orbit_angle + ship_orbit_speed * delta,
+		TAU
+	)
+
 	queue_redraw()
+
 
 func _draw() -> void:
 	# Étoile centrale
@@ -204,6 +228,123 @@ func _draw() -> void:
 			planet_position,
 			moons
 		)
+
+	_draw_player_ship()
+
+
+func _draw_player_ship() -> void:
+	var ship_position := Vector2(40.0, -30.0)
+	var direction := Vector2(1.0, -0.4).normalized()
+	var highlight: PlanetData = null
+
+	if ship_planet_id >= 0:
+		for planet in planets:
+			if planet.global_id == ship_planet_id:
+				highlight = planet
+				break
+
+	if highlight != null:
+		var planet_position: Vector2 = get_planet_position(highlight)
+		var radius: float = max(
+			highlight.size * 5.0 + 16.0,
+			22.0
+		)
+
+		# Position du vaisseau sur son orbite autour de la planète.
+		var radial := Vector2(
+			cos(ship_orbit_angle),
+			sin(ship_orbit_angle)
+		)
+
+		ship_position = planet_position + radial * radius
+
+		# Direction tangente à l'orbite.
+		direction = Vector2(-radial.y, radial.x)
+
+		# Trajectoire de l'orbite du vaisseau.
+		draw_arc(
+			planet_position,
+			radius,
+			0.0,
+			TAU,
+			48,
+			Color(0.5, 0.8, 1.0, 0.35),
+			1.0
+		)
+
+		# Halo autour de la planète abritant le vaisseau.
+		draw_arc(
+			planet_position,
+			highlight.size * 5.0 + 5.0,
+			0.0,
+			TAU,
+			32,
+			Color(0.5, 0.8, 1.0, 0.9),
+			1.5
+		)
+
+	else:
+		# En orbite de l'étoile : le vaisseau tourne autour de celle-ci.
+		var radius := 48.0
+		var radial := Vector2(
+			cos(ship_orbit_angle),
+			sin(ship_orbit_angle)
+		)
+
+		ship_position = radial * radius
+		direction = Vector2(-radial.y, radial.x)
+
+		draw_arc(
+			Vector2.ZERO,
+			radius,
+			0.0,
+			TAU,
+			48,
+			Color(1.0, 0.8, 0.3, 0.3),
+			1.0
+		)
+
+	var perpendicular := Vector2(-direction.y, direction.x)
+
+	var nose := ship_position + direction * 9.0
+	var rear_left := (
+		ship_position
+		- direction * 6.0
+		+ perpendicular * 4.5
+	)
+	var rear_right := (
+		ship_position
+		- direction * 6.0
+		- perpendicular * 4.5
+	)
+
+	var ship_points := PackedVector2Array([
+		nose,
+		rear_left,
+		rear_right
+	])
+
+	draw_colored_polygon(
+		ship_points,
+		Color(0.8, 0.95, 1.0)
+	)
+
+	draw_polyline(
+		PackedVector2Array([
+			nose,
+			rear_left,
+			rear_right,
+			nose
+		]),
+		Color.WHITE,
+		1.5
+	)
+
+	draw_circle(
+		ship_position,
+		12.0,
+		Color(0.5, 0.8, 1.0, 0.25)
+	)
 
 
 func _draw_moons(

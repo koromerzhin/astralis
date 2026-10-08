@@ -40,6 +40,7 @@ var planet_list: Panel = null
 var study_planet_button: Button
 var exploit_planet_button: Button
 var colonize_planet_button: Button
+var orbit_planet_button: Button
 var encountered_civilization: CivilizationData
 
 @onready var simulation_manager: SimulationManager = $SimulationManager
@@ -205,7 +206,7 @@ func _ready() -> void:
 	)
 
 	view_planet_button = Button.new()
-	view_planet_button.text = "Explorer cette planète"
+	view_planet_button.text = "Voir la planète"
 	view_planet_button.visible = false
 	view_planet_button.custom_minimum_size = Vector2(
 		0.0,
@@ -235,6 +236,22 @@ func _ready() -> void:
 	var planet_view_info_container: VBoxContainer = (
 		$UI/PlanetViewInfo/MarginContainer/VBoxContainer/ButtonArea
 	)
+
+	# Bouton de mise en orbite : obligatoire avant l'exploration.
+	orbit_planet_button = Button.new()
+	orbit_planet_button.text = "Aller en orbite de la planète"
+	orbit_planet_button.visible = false
+	orbit_planet_button.custom_minimum_size = Vector2(
+		0.0,
+		40.0
+	)
+
+	orbit_planet_button.pressed.connect(
+		_on_orbit_planet_button_pressed
+	)
+
+	planet_view_info_container.add_child(orbit_planet_button)
+	planet_view_info_container.move_child(orbit_planet_button, 0)
 
 	# Bouton d'étude.
 	study_planet_button = Button.new()
@@ -321,6 +338,7 @@ func _ready() -> void:
 		diplomacy_war_button,
 		view_planet_button,
 		explore_planet_button,
+		orbit_planet_button,
 		study_planet_button,
 		exploit_planet_button,
 		colonize_planet_button,
@@ -442,6 +460,7 @@ func _on_star_selected(star: Dictionary) -> void:
 
 	if star_id == player.current_system_id:
 		info += "\n\n★ Vous êtes ici"
+		info += "\n" + _ship_location_text(current_system)
 
 	elif player.traveling and star_id == player.target_system_id:
 		info += "\n\nDestination en cours..."
@@ -494,6 +513,9 @@ func _build_planet_info_text(
 	planet: PlanetData
 ) -> String:
 	var info := "PLANÈTE #" + str(planet.id) + "\n\n"
+
+	if player.current_planet_id == planet.global_id:
+		info += "★ VAISSEAU PRÉSENT\n\n"
 
 	info += "Type : "
 	info += planet.type
@@ -639,6 +661,7 @@ func _show_system() -> void:
 	current_planet = null
 
 	$System.set_system(current_system)
+	_sync_ship_planet()
 
 	if planet_list != null:
 		planet_list.visible = true
@@ -853,6 +876,7 @@ func _initialize_player() -> void:
 
 	if home_planet != null:
 		current_planet = home_planet
+		player.current_planet_id = home_planet.global_id
 		home_planet.is_explored = true
 		home_planet.is_studied = true
 
@@ -919,6 +943,35 @@ func _on_nav_button_pressed() -> void:
 	elif $System.visible:
 		_show_galaxy()
 		_restore_star_info(current_star_id)
+
+
+func _sync_ship_planet() -> void:
+	if $System.has_method("set_ship_planet_id"):
+		$System.call("set_ship_planet_id", player.current_planet_id)
+
+	if planet_list != null and planet_list.has_method("set_ship_planet_id"):
+		planet_list.call("set_ship_planet_id", player.current_planet_id)
+
+
+func _ship_location_text(system: Dictionary) -> String:
+	if player.current_planet_id < 0:
+		return "Vaisseau : en orbite de l'étoile"
+
+	var planets: Array = system.get("planets", [])
+
+	for planet_value in planets:
+		if planet_value == null:
+			continue
+
+		var planet: PlanetData = planet_value
+
+		if planet.global_id == player.current_planet_id:
+			return (
+				"Vaisseau : sur la planète #"
+				+ str(planet.global_id)
+			)
+
+	return "Vaisseau : en orbite de l'étoile"
 
 
 func _find_star_by_id(star_id: int) -> Dictionary:
@@ -1033,6 +1086,9 @@ func _on_player_arrived() -> void:
 
 	selected_star = {}
 
+	# Le vaisseau arrive en orbite de l'étoile, sur aucune planète.
+	player.current_planet_id = -1
+
 	travel_button.visible = false
 
 	encountered_civilization = (
@@ -1066,6 +1122,8 @@ func _on_player_arrived() -> void:
 				[]
 			).size()
 		)
+		+ "\n"
+		+ _ship_location_text(current_system)
 	)
 
 	if encountered_civilization != null:
@@ -1386,6 +1444,16 @@ func _on_view_planet_button_pressed() -> void:
 
 	$Planet.set_planet(planet)
 
+	_refresh_planet_view_text()
+	_refresh_planet_action_buttons()
+
+
+func _refresh_planet_view_text() -> void:
+	if current_planet == null:
+		return
+
+	var planet: PlanetData = current_planet
+
 	# Une planète colonisée est connue : exploration et étude effectuées,
 	# même si les drapeaux manquent (sauvegardes anciennes).
 	var known: bool = (
@@ -1410,12 +1478,44 @@ func _on_view_planet_button_pressed() -> void:
 		info
 	)
 
+
+func _refresh_planet_action_buttons() -> void:
+	if current_planet == null:
+		return
+
+	var planet: PlanetData = current_planet
+
+	var known: bool = (
+		planet.is_explored
+		or planet.colony != null
+	)
+	var studied: bool = (
+		planet.is_studied
+		or planet.colony != null
+	)
+	var in_orbit: bool = (
+		player.current_planet_id == planet.global_id
+	)
+
+	# Il faut d'abord se mettre en orbite autour de la planète.
+	orbit_planet_button.visible = not in_orbit
+	orbit_planet_button.disabled = false
+	orbit_planet_button.text = (
+		"Aller en orbite de la planète"
+	)
+
 	explore_planet_button.visible = true
-	explore_planet_button.disabled = known
+	explore_planet_button.disabled = known or not in_orbit
 	explore_planet_button.text = (
 		"Planète explorée"
 		if known
 		else "Explorer la planète"
+	)
+	explore_planet_button.tooltip_text = (
+		""
+		if known or in_orbit
+		else "Le vaisseau doit être en orbite "
+		+ "autour de la planète"
 	)
 
 	study_planet_button.visible = known
@@ -1445,6 +1545,21 @@ func _on_view_planet_button_pressed() -> void:
 	)
 
 
+func _on_orbit_planet_button_pressed() -> void:
+	if current_planet == null:
+		return
+
+	# Le vaisseau se place en orbite autour de la planète.
+	player.current_planet_id = current_planet.global_id
+	_sync_ship_planet()
+
+	if planet_list != null:
+		planet_list.refresh_statuses()
+
+	_refresh_planet_view_text()
+	_refresh_planet_action_buttons()
+
+
 func _build_planet_view_text(
 	planet: PlanetData
 ) -> String:
@@ -1452,6 +1567,14 @@ func _build_planet_view_text(
 		planet.type.to_upper()
 		+ "\n\n"
 	)
+
+	if player.current_planet_id == planet.global_id:
+		info += "★ VAISSEAU PRÉSENT\n\n"
+	else:
+		info += (
+			"Vaisseau : hors orbite\n"
+			+ "(aller en orbite pour explorer)\n\n"
+		)
 
 	info += "Température : "
 	info += str(
@@ -1636,23 +1759,8 @@ func _on_explore_planet_button_pressed() -> void:
 		_build_exploration_text(planet)
 	)
 
-	explore_planet_button.text = "Planète explorée"
-	explore_planet_button.disabled = true
-
 	# Les actions deviennent disponibles.
-	study_planet_button.visible = true
-
-	exploit_planet_button.visible = (
-		planet.minerals > 0.0
-		or planet.energy > 0.0
-		or planet.biological_resources > 0.0
-	)
-
-	colonize_planet_button.visible = (
-		planet.type != "gas_giant"
-		and planet.civilization == null
-		and planet.colony_owner_id == -1
-	)
+	_refresh_planet_action_buttons()
 
 	if $System.visible and planet_list != null:
 		planet_list.refresh_statuses()
@@ -2385,3 +2493,4 @@ func _refresh_after_load() -> void:
 	$Galaxy.queue_redraw()
 
 	_show_galaxy()
+	_sync_ship_planet()

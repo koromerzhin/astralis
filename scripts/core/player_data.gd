@@ -5,6 +5,10 @@ var civilization_id: int = -1
 var current_system_id: int = -1
 var target_system_id: int = -1
 
+# global_id de la planète où se trouve le vaisseau,
+# -1 si le vaisseau est en orbite autour de l'étoile.
+var current_planet_id: int = -1
+
 var position: Vector2 = Vector2.ZERO
 var current_system_position: Vector2 = Vector2.ZERO
 var travel_start_position: Vector2 = Vector2.ZERO
@@ -59,6 +63,7 @@ func to_dict() -> Dictionary:
 		"civilization_id": civilization_id,
 		"current_system_id": current_system_id,
 		"target_system_id": target_system_id,
+		"current_planet_id": current_planet_id,
 		"position": {"x": position.x, "y": position.y},
 		"current_system_position": {"x": current_system_position.x, "y": current_system_position.y},
 		"travel_start_position": {"x": travel_start_position.x, "y": travel_start_position.y},
@@ -73,6 +78,7 @@ func from_dict(data: Dictionary) -> void:
 	civilization_id = data["civilization_id"]
 	current_system_id = data["current_system_id"]
 	target_system_id = data["target_system_id"]
+	current_planet_id = int(data.get("current_planet_id", -1))
 	position = _vec(data, "position")
 	current_system_position = _vec(data, "current_system_position")
 	travel_start_position = _vec(data, "travel_start_position")

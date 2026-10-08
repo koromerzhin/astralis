@@ -10,6 +10,7 @@ const ACCENT_COLOR := Color(0.5, 0.8, 1.0, 0.9)
 
 var system_view: Node2D
 var items: Array = []
+var ship_planet_id: int = -1
 
 func _init() -> void:
 	name = "SystemPlanetList"
@@ -76,6 +77,14 @@ func setup(view: Node2D) -> void:
 		system_view.planet_selected.connect(highlight)
 
 
+func set_ship_planet_id(planet_id: int) -> void:
+	if ship_planet_id == planet_id:
+		return
+
+	ship_planet_id = planet_id
+	refresh_statuses()
+
+
 func highlight(planet: PlanetData) -> void:
 	for item in items:
 		var btn: Button = item.get("button")
@@ -103,6 +112,15 @@ func rebuild(planets: Array[PlanetData]) -> void:
 		hbox.add_theme_constant_override("separation", 4)
 		item_container.add_child(hbox)
 
+		var ship_tag := Label.new()
+		ship_tag.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		ship_tag.text = "VAISSEAU"
+		ship_tag.custom_minimum_size = Vector2(76, 0)
+		ship_tag.visible = false
+		ship_tag.add_theme_color_override("font_color", ACCENT_COLOR)
+		ship_tag.add_theme_font_size_override("font_size", 11)
+		hbox.add_child(ship_tag)
+
 		var btn := Button.new()
 		btn.mouse_filter = Control.MOUSE_FILTER_PASS
 		btn.focus_mode = FOCUS_NONE
@@ -128,6 +146,7 @@ func rebuild(planets: Array[PlanetData]) -> void:
 			"planet": planet,
 			"button": btn,
 			"status": status,
+			"ship_tag": ship_tag,
 			"hbox": hbox
 		})
 
@@ -138,8 +157,15 @@ func refresh_statuses() -> void:
 	for item in items:
 		var planet: PlanetData = item.get("planet")
 		var status: Label = item.get("status")
+		var ship_tag: Label = item.get("ship_tag")
 		if planet == null or status == null:
 			continue
+
+		if ship_tag != null:
+			ship_tag.visible = (
+				ship_planet_id >= 0
+				and planet.global_id == ship_planet_id
+			)
 		var text: String
 		var color: Color
 		if planet.colony != null:
