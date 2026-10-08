@@ -27,6 +27,9 @@ func set_stars(new_stars: Array[Dictionary]) -> void:
 
 
 func _process(delta: float) -> void:
+	if not visible:
+		return
+
 	var direction := Vector2.ZERO
 
 	if Input.is_key_pressed(KEY_Z) or Input.is_key_pressed(KEY_W):
@@ -271,64 +274,21 @@ func _draw_player_ship(zoom: float) -> void:
 		if direction == Vector2.ZERO:
 			direction = Vector2.RIGHT
 
-	var perpendicular := Vector2(
-		-direction.y,
-		direction.x
+	# Traînée longue pendant le voyage, nulle à l'arrêt.
+	var trail_length: float = (
+		14.0 * ship_scale
+		if player.traveling
+		else 0.0
 	)
 
-	var nose := position + direction * 10.0 * ship_scale
-
-	var rear_left := (
-		position
-		- direction * 7.0 * ship_scale
-		+ perpendicular * 5.0 * ship_scale
+	ShipDrawing.draw_ship(
+		self,
+		position,
+		direction,
+		0.65 * ship_scale,
+		trail_length,
+		0.0
 	)
-
-	var rear_right := (
-		position
-		- direction * 7.0 * ship_scale
-		- perpendicular * 5.0 * ship_scale
-	)
-
-	var ship_points := PackedVector2Array([
-		nose,
-		rear_left,
-		rear_right
-	])
-
-	draw_colored_polygon(
-		ship_points,
-		Color(0.8, 0.95, 1.0)
-	)
-
-	draw_polyline(
-		PackedVector2Array([
-			nose,
-			rear_left,
-			rear_right,
-			nose
-		]),
-		Color.WHITE,
-		1.5 * ship_scale
-	)
-
-	if player.traveling:
-		var trail_start := (
-			position
-			- direction * 8.0 * ship_scale
-		)
-
-		var trail_end := (
-			position
-			- direction * 22.0 * ship_scale
-		)
-
-		draw_line(
-			trail_start,
-			trail_end,
-			Color(0.4, 0.8, 1.0, 0.7),
-			2.0 * ship_scale
-		)
 
 func _draw_player_system_marker(zoom: float) -> void:
 	if player.current_system_id < 0:

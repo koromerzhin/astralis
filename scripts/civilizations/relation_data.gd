@@ -861,3 +861,66 @@ func get_economic_dependence(
 		return economic_dependence_b
 
 	return 0.0
+
+
+func to_dict() -> Dictionary:
+	return {
+		"civilization_a_id": civilization_a_id,
+		"civilization_b_id": civilization_b_id,
+		"relation": relation,
+		"trade": trade,
+		"trust": trust,
+		"alliance": alliance,
+		"at_war": at_war,
+		"war_score": war_score,
+		"war_years": war_years,
+		"trade_value": trade_value,
+		"distance": distance,
+		"event_history": event_history,
+		"last_war_winner": last_war_winner,
+		"revenge_a": revenge_a,
+		"revenge_b": revenge_b,
+		"war_ended_year": war_ended_year,
+		"territorial_demands": territorial_demands,
+		"last_demand_year": last_demand_year,
+		"economic_dependence_a": economic_dependence_a,
+		"economic_dependence_b": economic_dependence_b,
+		"sanctions_a": sanctions_a,
+		"sanctions_b": sanctions_b,
+		"sanctions_level_a": sanctions_level_a,
+		"sanctions_level_b": sanctions_level_b
+	}
+
+
+func from_dict(data: Dictionary) -> void:
+	civilization_a_id = data["civilization_a_id"]
+	civilization_b_id = data["civilization_b_id"]
+	relation = data["relation"]
+	trade = data["trade"]
+	trust = data["trust"]
+	alliance = data["alliance"]
+	at_war = data["at_war"]
+	war_score = data["war_score"]
+	war_years = data["war_years"]
+	trade_value = data["trade_value"]
+	distance = data["distance"]
+
+	event_history.clear()
+
+	for value in data["event_history"]:
+		event_history.append(
+			str(value)
+		)
+
+	last_war_winner = data["last_war_winner"]
+	revenge_a = data["revenge_a"]
+	revenge_b = data["revenge_b"]
+	war_ended_year = data["war_ended_year"]
+	territorial_demands = data["territorial_demands"]
+	last_demand_year = data["last_demand_year"]
+	economic_dependence_a = data["economic_dependence_a"]
+	economic_dependence_b = data["economic_dependence_b"]
+	sanctions_a = data["sanctions_a"]
+	sanctions_b = data["sanctions_b"]
+	sanctions_level_a = data["sanctions_level_a"]
+	sanctions_level_b = data["sanctions_level_b"]

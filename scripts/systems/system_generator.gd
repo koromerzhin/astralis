@@ -40,6 +40,15 @@ func generate(
 				+ planet.civilization.id
 			)
 
+			planet.civilization.home_planet_id = (
+				planet.global_id
+			)
+
+			if planet.colony != null:
+				planet.colony_owner_id = (
+					planet.civilization.global_id
+				)
+
 		planets.append(planet)
 
 	_generate_colonies(
@@ -47,12 +56,170 @@ func generate(
 		planets
 	)
 
+	# Astéroïdes et comètes : générés après les colonies pour ne pas
+	# modifier le tirage aléatoire des planètes et colonies existantes.
+	var asteroid_belts: Array[AsteroidBeltData] = (
+		_generate_asteroid_belts(rng, planets, system_id)
+	)
+
+	var comets: Array[CometData] = (
+		_generate_comets(rng, planets, system_id)
+	)
+
 	return {
 		"seed": system_seed,
 		"star_type": star_type,
 		"star_luminosity": star_luminosity,
 		"planets": planets,
+		"asteroid_belts": asteroid_belts,
+		"comets": comets,
 	}
+
+
+# Régénération pour les sauvegardes antérieures aux astéroïdes.
+func generate_asteroids_and_comets(
+	system_seed: int,
+	planets: Array,
+	system_id: int
+) -> Dictionary:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = system_seed + 777
+
+	return {
+		"asteroid_belts": (
+			_generate_asteroid_belts(rng, planets, system_id)
+		),
+		"comets": (
+			_generate_comets(rng, planets, system_id)
+		),
+	}
+
+
+func _generate_asteroid_belts(
+	rng: RandomNumberGenerator,
+	planets: Array,
+	system_id: int
+) -> Array[AsteroidBeltData]:
+	var belts: Array[AsteroidBeltData] = []
+
+	var orbits: Array[float] = []
+
+	for planet_value in planets:
+		if planet_value == null:
+			continue
+
+		var planet: PlanetData = planet_value
+		orbits.append(planet.orbit_distance)
+
+	orbits.sort()
+
+	# Emplacements possibles : entre deux orbites éloignées,
+	# et au-delà de la planète la plus lointaine.
+	var slots: Array[float] = []
+
+	for i in range(1, orbits.size()):
+		var gap: float = orbits[i] - orbits[i - 1]
+
+		if gap >= 90.0:
+			slots.append(
+				(orbits[i] + orbits[i - 1]) / 2.0
+			)
+
+	if not orbits.is_empty():
+		slots.append(orbits[orbits.size() - 1] + 110.0)
+
+	if orbits.size() > 0 and orbits[0] > 80.0:
+		slots.append(orbits[0] - 70.0)
+
+	if slots.is_empty():
+		return belts
+
+	# Mélange déterministe à partir de la graine du système.
+	for i in range(slots.size() - 1, 0, -1):
+		var j: int = rng.randi_range(0, i)
+
+		var swap: float = slots[i]
+		slots[i] = slots[j]
+		slots[j] = swap
+
+	var belt_count: int = mini(rng.randi_range(1, 2), slots.size())
+
+	for i in belt_count:
+		var belt_seed: int = rng.randi()
+		var belt_orbit: float = slots[i]
+		var belt_width: float = rng.randf_range(30.0, 55.0)
+		var rock_count: int = rng.randi_range(70, 140)
+		var minerals: float = rng.randf_range(150.0, 400.0)
+
+		var belt := AsteroidBeltData.new()
+
+		belt.initialize(
+			i,
+			belt_seed,
+			system_id,
+			belt_orbit,
+			belt_width,
+			rock_count,
+			minerals
+		)
+
+		belts.append(belt)
+
+	return belts
+
+
+func _generate_comets(
+	rng: RandomNumberGenerator,
+	planets: Array,
+	system_id: int
+) -> Array[CometData]:
+	var comets: Array[CometData] = []
+
+	var outer_orbit: float = 300.0
+
+	for planet_value in planets:
+		if planet_value == null:
+			continue
+
+		var planet: PlanetData = planet_value
+		outer_orbit = maxf(outer_orbit, planet.orbit_distance)
+
+	var comet_count: int = rng.randi_range(1, 2)
+
+	for i in comet_count:
+		var comet_seed: int = rng.randi()
+
+		var semi_major: float = rng.randf_range(
+			220.0,
+			outer_orbit + 320.0
+		)
+
+		var eccentricity: float = rng.randf_range(
+			0.25,
+			0.6
+		)
+
+		# Le périhélie doit rester hors de l'étoile.
+		eccentricity = minf(
+			eccentricity,
+			1.0 - 70.0 / maxf(semi_major, 80.0)
+		)
+
+		var comet := CometData.new()
+
+		comet.initialize(
+			i,
+			comet_seed,
+			system_id,
+			semi_major,
+			eccentricity,
+			rng.randf_range(0.0, TAU),
+			rng.randf_range(3.0, 8.0)
+		)
+
+		comets.append(comet)
+
+	return comets
 
 
 func _generate_planet(

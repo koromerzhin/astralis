@@ -22,6 +22,7 @@ var age: float
 var home_planet_id: int
 var colony_planet_ids: Array[int] = []
 var explored_system_ids: Array[int] = []
+var system_explored_lookup: Dictionary = {}
 var known_civilization_ids: Array[int] = []
 var colonies: Array[ColonyData] = []
 var trade_income: float = 0.0
@@ -29,6 +30,10 @@ var colony_income: float = 0.0
 var expansion_budget: float = 0.0
 var known_civilization_system_ids: Dictionary = {}
 var trade_network_strength: float = 0.0
+
+# Ressources extraites des ceintures d'astéroïdes et des comètes.
+# Consommées lentement par l'économie chaque année.
+var asteroid_minerals: float = 0.0
 
 
 func initialize(
@@ -305,6 +310,24 @@ func simulate_economy_and_technology(
 		economy_target - economy
 	) * 0.01
 
+	# Conversion des ressources extraites (astéroïdes, comètes)
+	# en économie et technologie, chaque année.
+	if asteroid_minerals > 0.0:
+		var consumed: float = minf(
+			asteroid_minerals,
+			maxf(2.0, asteroid_minerals * 0.05)
+		)
+
+		asteroid_minerals -= consumed
+
+		economy = clamp(
+			economy + consumed * 0.05,
+			1.0,
+			100.0
+		)
+
+		technology += consumed * 0.01
+
 	var technology_growth: float = (
 		(economy / 100.0) * 0.15
 		+ (population / 10000000.0) * 0.05
@@ -492,6 +515,40 @@ func get_interaction_range() -> float:
 			return 50.0
 
 
+func attach_home_colony(
+	planet: PlanetData
+) -> void:
+	if planet == null:
+		return
+
+	if planet.colony != null:
+		return
+
+	# La colonie de la planète mère n'est pas ajoutée au
+	# tableau « colonies » : la population du monde d'origine
+	# est déjà comptée via civilization.population, afin de
+	# ne pas la compter deux fois.
+	var colony := ColonyData.new()
+
+	colony.initialize(
+		-1,
+		seed,
+		planet
+	)
+
+	colony.population = population
+	colony.population_capacity = max(
+		1000,
+		planet.population_capacity
+	)
+
+	planet.colony = colony
+	planet.colony_owner_id = global_id
+
+	# Une planète colonisée est connue : exploration et étude effectuées.
+	planet.is_explored = true
+	planet.is_studied = true
+
 func add_colony(
 	colony_seed: int,
 	target_planet: PlanetData
@@ -520,6 +577,13 @@ func add_colony(
 		colony
 	)
 
+	target_planet.colony = colony
+	target_planet.colony_owner_id = global_id
+
+	# Une planète colonisée est connue : exploration et étude effectuées.
+	target_planet.is_explored = true
+	target_planet.is_studied = true
+
 
 func get_total_population() -> int:
 	var total: int = population
@@ -537,10 +601,6 @@ func get_total_production() -> float:
 		total += colony.production
 
 	return total
-
-
-func reset_trarelation_datade_income() -> void:
-	trade_income = 0.0
 
 
 func add_trade_income(
@@ -610,6 +670,15 @@ func simulate_colonies() -> void:
 
 		colony.simulate_stability(
 			economy,
+			technology
+		)
+
+		colony.simulate_production(
+			economy,
+			technology
+		)
+
+		colony.simulate_development(
 			technology
 		)
 
@@ -1223,7 +1292,7 @@ func wants_to_explore() -> bool:
 func has_explored_system(
 	system_id: int
 ) -> bool:
-	return explored_system_ids.has(
+	return system_explored_lookup.has(
 		system_id
 	)
 	
@@ -1241,6 +1310,10 @@ func explore_system(
 	explored_system_ids.append(
 		system_id
 	)
+
+	system_explored_lookup[
+		system_id
+	] = true
 
 func knows_civilization(
 	civilization_id: int
@@ -1378,6 +1451,12 @@ func simulate_colony_economy() -> void:
 	expansion_budget += (
 		trade_income
 		* 0.05
+	)
+
+	# Une civilisation investit toujours une part
+	# de son économie pour s'étendre, même sans colonie.
+	expansion_budget += (
+		economy * 0.05
 	)
 
 	# Une population coloniale importante augmente
@@ -1841,3 +1920,123 @@ func wants_to_support_ally(
 		support_desire *= 0.75
 
 	return support_desire >= 45.0
+
+
+func to_dict() -> Dictionary:
+	var colonies_data: Array = []
+
+	for colony in colonies:
+		colonies_data.append(
+			colony.to_dict()
+		)
+
+	var known_systems_data: Dictionary = {}
+
+	for civ_id in known_civilization_system_ids.keys():
+		known_systems_data[int(civ_id)] = (
+			known_civilization_system_ids[civ_id]
+		)
+
+	return {
+		"id": id,
+		"global_id": global_id,
+		"seed": seed,
+		"name": name,
+		"aggression": aggression,
+		"expansionism": expansionism,
+		"militarism": militarism,
+		"diplomacy": diplomacy,
+		"commerce": commerce,
+		"science": science,
+		"isolationism": isolationism,
+		"population": population,
+		"technology": technology,
+		"economy": economy,
+		"space_capability": space_capability,
+		"military_power": military_power,
+		"age": age,
+		"home_planet_id": home_planet_id,
+		"colony_planet_ids": colony_planet_ids,
+		"explored_system_ids": explored_system_ids,
+		"known_civilization_ids": known_civilization_ids,
+		"colonies": colonies_data,
+		"trade_income": trade_income,
+		"colony_income": colony_income,
+		"expansion_budget": expansion_budget,
+		"known_civilization_system_ids": known_systems_data,
+		"trade_network_strength": trade_network_strength,
+		"asteroid_minerals": asteroid_minerals
+	}
+
+
+func from_dict(data: Dictionary) -> void:
+	id = data["id"]
+	global_id = data["global_id"]
+	seed = data["seed"]
+	name = data["name"]
+	aggression = data["aggression"]
+	expansionism = data["expansionism"]
+	militarism = data["militarism"]
+	diplomacy = data["diplomacy"]
+	commerce = data["commerce"]
+	science = data["science"]
+	isolationism = data["isolationism"]
+	population = data["population"]
+	technology = data["technology"]
+	economy = data["economy"]
+	space_capability = data["space_capability"]
+	military_power = data["military_power"]
+	age = data["age"]
+	home_planet_id = data["home_planet_id"]
+
+	colony_planet_ids.clear()
+
+	for value in data["colony_planet_ids"]:
+		colony_planet_ids.append(
+			int(value)
+		)
+
+	explored_system_ids.clear()
+	system_explored_lookup.clear()
+
+	for value in data["explored_system_ids"]:
+		explored_system_ids.append(
+			int(value)
+		)
+
+		system_explored_lookup[
+			int(value)
+		] = true
+
+	known_civilization_ids.clear()
+
+	for value in data["known_civilization_ids"]:
+		known_civilization_ids.append(
+			int(value)
+		)
+
+	trade_income = data["trade_income"]
+	colony_income = data["colony_income"]
+	expansion_budget = data["expansion_budget"]
+	trade_network_strength = data["trade_network_strength"]
+	asteroid_minerals = float(
+		data.get("asteroid_minerals", 0.0)
+	)
+
+	colonies.clear()
+
+	var colonies_data: Array = data["colonies"]
+
+	for colony_data in colonies_data:
+		var colony := ColonyData.new()
+
+		colony.from_dict(colony_data)
+
+		colonies.append(colony)
+
+	known_civilization_system_ids.clear()
+
+	for civ_id in data["known_civilization_system_ids"].keys():
+		known_civilization_system_ids[int(civ_id)] = (
+			data["known_civilization_system_ids"][civ_id]
+		)
