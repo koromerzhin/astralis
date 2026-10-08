@@ -607,7 +607,16 @@ func _show_system() -> void:
 	$System.visible = true
 	$System/Camera2D.enabled = true
 
-	$UI/StarInfo.visible = false
+	var star_id := current_star_id
+	if star_id < 0:
+		star_id = player.current_system_id
+
+	var star := _find_star_by_id(star_id)
+	if not star.is_empty():
+		_on_star_selected(star)
+	else:
+		$UI/StarInfo.visible = false
+
 	$UI/PlanetInfo.visible = false
 	$UI/PlanetViewInfo.visible = false
 
@@ -910,6 +919,17 @@ func _on_nav_button_pressed() -> void:
 	elif $System.visible:
 		_show_galaxy()
 		_restore_star_info(current_star_id)
+
+
+func _find_star_by_id(star_id: int) -> Dictionary:
+	if star_id < 0:
+		return {}
+
+	for star in stars:
+		if int(star["id"]) == star_id:
+			return star
+
+	return {}
 
 
 func _restore_star_info(star_id: int) -> void:
