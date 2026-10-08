@@ -503,46 +503,13 @@ func _draw_player_ship() -> void:
 			1.0
 		)
 
-	var perpendicular := Vector2(-direction.y, direction.x)
-
-	var nose := ship_position + direction * 9.0
-	var rear_left := (
-		ship_position
-		- direction * 6.0
-		+ perpendicular * 4.5
-	)
-	var rear_right := (
-		ship_position
-		- direction * 6.0
-		- perpendicular * 4.5
-	)
-
-	var ship_points := PackedVector2Array([
-		nose,
-		rear_left,
-		rear_right
-	])
-
-	draw_colored_polygon(
-		ship_points,
-		Color(0.8, 0.95, 1.0)
-	)
-
-	draw_polyline(
-		PackedVector2Array([
-			nose,
-			rear_left,
-			rear_right,
-			nose
-		]),
-		Color.WHITE,
-		1.5
-	)
-
-	draw_circle(
+	ShipDrawing.draw_ship(
+		self,
 		ship_position,
-		12.0,
-		Color(0.5, 0.8, 1.0, 0.25)
+		direction,
+		0.6,
+		6.0,
+		12.0
 	)
 
 

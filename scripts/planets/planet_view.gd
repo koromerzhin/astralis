@@ -159,44 +159,13 @@ func _draw_player_ship(radius: float) -> void:
 		1.0
 	)
 
-	var perpendicular := Vector2(-direction.y, direction.x)
-
-	var nose := ship_position + direction * 14.0
-	var rear_left := (
-		ship_position
-		- direction * 9.0
-		+ perpendicular * 7.0
-	)
-	var rear_right := (
-		ship_position
-		- direction * 9.0
-		- perpendicular * 7.0
-	)
-
-	draw_colored_polygon(
-		PackedVector2Array([
-			nose,
-			rear_left,
-			rear_right
-		]),
-		Color(0.8, 0.95, 1.0)
-	)
-
-	draw_polyline(
-		PackedVector2Array([
-			nose,
-			rear_left,
-			rear_right,
-			nose
-		]),
-		Color.WHITE,
-		2.0
-	)
-
-	draw_circle(
+	ShipDrawing.draw_ship(
+		self,
 		ship_position,
-		18.0,
-		Color(0.5, 0.8, 1.0, 0.25)
+		direction,
+		0.9,
+		8.0,
+		18.0
 	)
 
 func _get_planet_color(planet_type: String) -> Color:
